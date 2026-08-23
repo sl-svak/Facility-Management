@@ -1,0 +1,134 @@
+/* ==========================================================================
+   ZÁKLADNÍ PROMĚNNÉ A BARVY
+   ========================================================================== */
+:root {
+    --primary: #2c3e50;
+    --primary-hover: #1a252f;
+    --success: #27ae60;
+    --danger: #e74c3c;
+    --warning: #f39c12;
+    --info: #2980b9;
+    --background: #f4f7f6;
+    --text-main: #333333;
+    --text-muted: #666666;
+    --border-color: #eeeeee;
+}
+
+/* ==========================================================================
+   RESET A ZÁKLADNÍ STRUKTURA
+   ========================================================================== */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--background);
+    color: var(--text-main);
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+/* ==========================================================================
+   KOMPONENTY: KARTY (CARDS)
+   ========================================================================== */
+.card {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+.card-primary-top {
+    border-top: 4px solid var(--primary);
+}
+
+/* ==========================================================================
+   KOMPONENTY: TLAČÍTKA (BUTTONS)
+   ========================================================================== */
+.btn-primary, .btn {
+    display: inline-block;
+    padding: 10px 15px;
+    background-color: var(--primary);
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s ease;
+    text-align: center;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-success { background-color: var(--success); }
+.btn-danger { background-color: var(--danger); }
+.btn-warning { background-color: var(--warning); }
+.btn-info { background-color: var(--info); }
+
+.btn-block {
+    display: block;
+    width: 100%;
+}
+
+/* ==========================================================================
+   TABULKY
+   ========================================================================== */
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.table th {
+    padding: 12px;
+    color: var(--text-main);
+    border-bottom: 2px solid #ddd;
+    background: #f9f9f9;
+}
+
+.table td {
+    padding: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+
+/* ==========================================================================
+   ŠTÍTKY A STATUSY (BADGES)
+   ========================================================================== */
+.badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.badge-open {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.badge-closed {
+    background: #d4edda;
+    color: #155724;
+}
+
+/* ==========================================================================
+   MŘÍŽKA A ROZLOŽENÍ (GRID)
+   ========================================================================== */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+}

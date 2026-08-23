@@ -1,0 +1,19 @@
+# 1. Zákaz procházení obsahu složek na celém webu
+Options -Indexes
+
+# 2. Ochrana specifických souborů před přímým zobrazením
+<FilesMatch "^(config\.sample\.php|\.htaccess|install\.php)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 3. Zabezpečení proti kliknutí přes iframe (Clickjacking)
+<IfModule mod_headers.c>
+    Header always append X-Frame-Options SAMEORIGIN
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>

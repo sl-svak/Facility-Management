@@ -27,3 +27,17 @@ Lehká, rychlá a mobilní webová aplikace pro digitální řízení údržby, 
 Aplikace byla vyvinuta s cílem nahradit nepřehledné papírové formuláře a zefektivnit každodenní rutinu údržbářů. Díky přesunu výpočetního výkonu (např. komprese velkých fotek z moderních smartphonů) na stranu klienta je systém extrémně rychlý, nenáročný na serverový výkon a plně nasaditelný i na bezplatné nebo levné webhostingy.
 
 Jak postupovat při instalaci: https://github.com/sl-svak/Facility-Management/wiki
+
+
+## 📄 Licence a knihovny třetích stran
+
+Tento projekt (CMMS webová aplikace) je šířen pod licencí GNU-LGPL v3.
+
+### Použitý software třetích stran (Credits)
+Tato aplikace by nemohla fungovat bez skvělé práce open-source komunity. Zvláštní poděkování patří:
+
+*   **TCPDF**
+    *   Aplikace využívá knihovnu TCPDF pro generování komplexních PDF dokumentů (Knih strojů a protokolů).
+    *   Knihovna TCPDF je svobodný software a je distribuována pod licencí **GNU-LGPL v3** (Lesser General Public License).
+    *   Autor: Nicola Asuni / Tecnick.com LTD.
+    *   Více informací a zdrojové kódy knihovny naleznete na: [https://tcpdf.org/](https://tcpdf.org/)

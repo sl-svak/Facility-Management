@@ -25,3 +25,5 @@ Lehká, rychlá a mobilní webová aplikace pro digitální řízení údržby, 
 ## 💡 O projektu
 
 Aplikace byla vyvinuta s cílem nahradit nepřehledné papírové formuláře a zefektivnit každodenní rutinu údržbářů. Díky přesunu výpočetního výkonu (např. komprese velkých fotek z moderních smartphonů) na stranu klienta je systém extrémně rychlý, nenáročný na serverový výkon a plně nasaditelný i na bezplatné nebo levné webhostingy.
+
+Jak postupovat při instalaci: https://github.com/sl-svak/Facility-Management/wiki

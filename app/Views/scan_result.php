@@ -48,28 +48,88 @@
 
         <h4 style="color: #2c3e50; margin-bottom: 10px;">Dostupné kontrolní formuláře a revize</h4>
 
-        <?php if (empty($forms)): ?>
+        <?php if (empty($forms) && empty($completedTodayForms) && empty($futureForms)): ?>
+            <!-- ZCELA PRÁZDNÝ STROJ (Žádné plány údržby) -->
             <div style="padding: 25px; background: #e8f4f8; color: #2980b9; border-radius: 6px; border: 1px solid #bce8f1; text-align: center;">
                 <span class="material-symbols-outlined" style="font-size: 3em; margin-bottom: 10px;">assignment_late</span><br>
                 <strong>K tomuto zařízení zatím není přiřazen žádný kontrolní formulář.</strong><br>
                 Přiřazení šablony a nastavení periody provádí dispečer v sekci <em>Plánování údržby</em>.
             </div>
         <?php else: ?>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
-                <?php foreach ($forms as $f): ?>
-                    <div style="background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.03);">
-                        <div>
-                            <h4 style="margin: 0 0 5px 0; color: #2c3e50;"><?= htmlspecialchars($f['title']) ?></h4>
-                            <div style="font-size: 0.85em; color: #777; margin-bottom: 15px;">
-                                Perioda: <strong>každých <?= (int)$f['period_days'] ?> dní</strong>
+            
+            <!-- ÚSPĚŠNÁ HLÁŠKA (Pro dnešek není nic nového k provedení) -->
+            <?php if (empty($forms) && (!empty($completedTodayForms) || !empty($futureForms))): ?>
+                <div style="padding: 20px; background: #eafaf1; color: #27ae60; border-radius: 6px; border: 1px solid #c3e6cb; text-align: center; margin-bottom: 20px;">
+                    <span class="material-symbols-outlined" style="font-size: 2.5em; margin-bottom: 5px;">task_alt</span><br>
+                    <strong>Všechny úkony pro aktuální směnu jsou hotové!</strong><br>
+                    Zařízení bylo úspěšně zkontrolováno a nečeká na něj žádný další plánovaný formulář.
+                </div>
+            <?php endif; ?>
+
+            <!-- KATEGORIE 1: BĚŽNÉ (NEVYPLNĚNÉ) FORMULÁŘE -->
+            <?php if (!empty($forms)): ?>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <?php foreach ($forms as $f): ?>
+                        <div style="background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.03);">
+                            <div>
+                                <h4 style="margin: 0 0 5px 0; color: #2c3e50;"><?= htmlspecialchars($f['title']) ?></h4>
+                                <div style="font-size: 0.85em; color: #777; margin-bottom: 15px;">
+                                    Perioda: <strong>každých <?= (int)$f['period_days'] ?> dní</strong>
+                                </div>
                             </div>
+                            <a href="index.php?page=inspection_fill&asset_id=<?= $asset['id'] ?>&form_id=<?= $f['id'] ?>" class="btn btn-primary" style="text-align: center; text-decoration: none; display: block; padding: 10px;">
+                                <span class="material-symbols-outlined" style="vertical-align: middle;">edit_note</span> Vyplnit kontrolu
+                            </a>
                         </div>
-                        <a href="index.php?page=inspection_fill&asset_id=<?= $asset['id'] ?>&form_id=<?= $f['id'] ?>" class="btn btn-primary" style="text-align: center; text-decoration: none; display: block; padding: 10px;">
-                            <span class="material-symbols-outlined" style="vertical-align: middle;">edit_note</span> Vyplnit kontrolu
-                        </a>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- KATEGORIE 2: HOTOVO V TÉTO SMĚNĚ -->
+            <?php if (!empty($completedTodayForms)): ?>
+                <h4 style="color: #7f8c8d; margin-top: 15px; margin-bottom: 10px; border-top: 1px solid #eee; padding-top: 15px;">
+                    <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.2em;">done_all</span> Již splněno pro aktuální směnu
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <?php foreach ($completedTodayForms as $f): ?>
+                        <div style="background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <h4 style="margin: 0 0 5px 0; color: #7f8c8d;"><?= htmlspecialchars($f['title']) ?></h4>
+                                <div style="font-size: 0.85em; color: #999; margin-bottom: 15px;">
+                                    Dnes naposledy provedeno: <strong style="color: #27ae60;"><?= date('H:i', strtotime($f['last_inspection'])) ?></strong>
+                                </div>
+                            </div>
+                            <a href="index.php?page=inspection_fill&asset_id=<?= $asset['id'] ?>&form_id=<?= $f['id'] ?>" class="btn" style="background: #bdc3c7; color: #fff; text-align: center; text-decoration: none; display: block; padding: 10px;">
+                                <span class="material-symbols-outlined" style="vertical-align: middle;">add_circle</span> Mimořádně vyplnit
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- KATEGORIE 3: NAPLÁNOVÁNO NA POZDĚJI (Dřívější kontroly) -->
+            <?php if (!empty($futureForms)): ?>
+                <h4 style="color: #7f8c8d; margin-top: 15px; margin-bottom: 10px; border-top: 1px solid #eee; padding-top: 15px;">
+                    <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.2em;">update</span> Naplánováno na později
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                    <?php foreach ($futureForms as $f): ?>
+                        <div style="background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <h4 style="margin: 0 0 5px 0; color: #7f8c8d;"><?= htmlspecialchars($f['title']) ?></h4>
+                                <div style="font-size: 0.85em; color: #999; margin-bottom: 15px;">
+                                    Naposledy provedeno: <strong><?= date('d.m.Y H:i', strtotime($f['last_inspection'])) ?></strong><br>
+                                    Další termín za: <strong><?= $f['days_remaining'] ?> dní</strong>
+                                </div>
+                            </div>
+                            <a href="index.php?page=inspection_fill&asset_id=<?= $asset['id'] ?>&form_id=<?= $f['id'] ?>" class="btn" style="background: #bdc3c7; color: #fff; text-align: center; text-decoration: none; display: block; padding: 10px;">
+                                <span class="material-symbols-outlined" style="vertical-align: middle;">add_circle</span> Mimořádně vyplnit
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
         <?php endif; ?>
     <?php endif; ?>
 </div>

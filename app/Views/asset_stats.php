@@ -53,59 +53,21 @@
                     
                     var options<?= $chartIndex ?> = {
                         series: [{
-                            name: '<?= htmlspecialchars($key) ?>',
+                            name: <?= json_encode($c['title']) ?>, // Opraveno pro zobrazení přeloženého titulku v najetí myši
                             data: <?= json_encode($c['points']) ?>
                         }],
-                        chart: {
-                            type: isBar ? 'bar' : 'area',
-                            height: 300,
-                            toolbar: { show: false },
-                            zoom: { enabled: false }
-                        },
+                        chart: { type: isBar ? 'bar' : 'area', height: 300, toolbar: { show: false }, zoom: { enabled: false } },
                         colors: isBar ? ['#16a085'] : ['#2980b9'],
-                        plotOptions: {
-                            bar: {
-                                borderRadius: 5,
-                                columnWidth: '45%',
-                                dataLabels: { position: 'top' }
-                            }
-                        },
-                        stroke: {
-                            curve: 'straight', // Narovnání čáry namísto hladké vlnovky
-                            width: isBar ? 0 : 3
-                        },
+                        plotOptions: { bar: { borderRadius: 5, columnWidth: '45%', dataLabels: { position: 'top' } } },
+                        stroke: { curve: 'straight', width: isBar ? 0 : 3 },
                         dataLabels: {
-                            enabled: true,
-                            formatter: function (val) {
-                                return (isBar ? '+' : '') + val;
-                            },
-                            offsetY: isBar ? -20 : 0,
-                            style: {
-                                fontSize: '11px',
-                                colors: isBar ? ['#16a085'] : ['#333']
-                            },
+                            enabled: true, formatter: function (val) { return (isBar ? '+' : '') + val; },
+                            offsetY: isBar ? -20 : 0, style: { fontSize: '11px', colors: isBar ? ['#16a085'] : ['#333'] },
                             background: { enabled: !isBar, borderRadius: 4, borderWidth: 0 }
                         },
-                        xaxis: {
-                            type: 'datetime', // Použití reálného času pro propojení bodů
-                            labels: { 
-                                datetimeUTC: false, 
-                                format: 'dd.MM. HH:mm',
-                                style: { fontSize: '11px', colors: '#777' } 
-                            }
-                        },
-                        yaxis: {
-                            labels: { style: { colors: '#777', fontWeight: 'bold' } }
-                        },
-                        fill: {
-                            type: isBar ? 'solid' : 'gradient',
-                            gradient: {
-                                shadeIntensity: 1,
-                                opacityFrom: 0.6,
-                                opacityTo: 0.1,
-                                stops: [0, 90, 100]
-                            }
-                        },
+                        xaxis: { type: 'datetime', labels: { datetimeUTC: false, format: 'dd.MM. HH:mm', style: { fontSize: '11px', colors: '#777' } } },
+                        yaxis: { labels: { style: { colors: '#777', fontWeight: 'bold' } } },
+                        fill: { type: isBar ? 'solid' : 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.6, opacityTo: 0.1, stops: [0, 90, 100] } },
                         tooltip: {
                             x: { format: 'dd.MM.yyyy HH:mm' },
                             y: {

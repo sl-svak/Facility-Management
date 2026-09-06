@@ -3,6 +3,7 @@
 require_once APP_ROOT . '/app/Models/SettingModel.php';
 $globalAppName = SettingModel::get('app_name', 'CMMS Cosmonde');
 $globalFavicon = SettingModel::get('favicon_path', '');
+$globalAppFont = SettingModel::get('app_font', 'default'); // Nově načtený font z databáze
 ?>
 <!DOCTYPE html>
 <html lang="cs">
@@ -21,6 +22,28 @@ $globalFavicon = SettingModel::get('favicon_path', '');
     
     <!-- NÁŠ HLAVNÍ CSS SOUBOR -->
     <link rel="stylesheet" href="assets/css/style.css">
+
+    <!-- DYNAMICKÁ ZMĚNA PÍSMA (POUZE PRO MOBILY NA VÝŠKU) -->
+    <?php if ($globalAppFont === 'condensed'): ?>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap">
+        <style>
+            @media screen and (max-width: 768px) and (orientation: portrait) {
+                body, input, select, button, textarea, .table { 
+                    font-family: 'Roboto Condensed', sans-serif !important; 
+                    font-size: 14px !important; 
+                }
+            }
+        </style>
+    <?php elseif ($globalAppFont === 'system'): ?>
+        <style>
+            @media screen and (max-width: 768px) and (orientation: portrait) {
+                body, input, select, button, textarea, .table { 
+                    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; 
+                    font-size: 14px !important; 
+                }
+            }
+        </style>
+    <?php endif; ?>
     
     <style>
         /* Specifické styly pouze pro rozvržení hlavní stránky (kostry) a menu */
@@ -32,7 +55,7 @@ $globalFavicon = SettingModel::get('favicon_path', '');
         
         body { display: flex; height: 100vh; overflow: hidden; }
         
-        .sidebar { width: 250px; background: var(--sidebar-bg); color: var(--text-light); display: flex; flex-direction: column; transition: 0.3s; z-index: 1000; }
+        .sidebar { width: 250px; min-width: 250px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--text-light); display: flex; flex-direction: column; transition: 0.3s; z-index: 1000; }
         
         .sidebar-header { padding: 15px 20px; font-size: 1.5em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1); }
         .logout-btn { color: #e74c3c; text-decoration: none; display: flex; align-items: center; padding: 5px; border-radius: 4px; transition: 0.2s; }
@@ -64,7 +87,7 @@ $globalFavicon = SettingModel::get('favicon_path', '');
             
             .topbar { padding: 10px 15px; }
             .topbar h2 { font-size: 1.1em; }
-            .content-wrapper { padding: 10px; }
+            .content-wrapper { padding: 10px 10px 90px 10px; }
         }
     </style>
 </head>
@@ -95,7 +118,7 @@ $globalFavicon = SettingModel::get('favicon_path', '');
             <!-- PRÁVA STRIKTNĚ POUZE PRO ADMINA -->
             <?php if (Auth::isAdmin()): ?>
                 <li><a href="index.php?page=users"><span class="material-symbols-outlined">group</span> <span class="text">Správa uživatelů</span></a></li>
-                <!-- NOVÁ POLOŽKA: NASTAVENÍ -->
+                <!-- NASTAVENÍ -->
                 <li><a href="index.php?page=settings"><span class="material-symbols-outlined">settings</span> <span class="text">Nastavení</span></a></li>
             <?php endif; ?>
 

@@ -1,7 +1,6 @@
 <?php 
 if (!defined('APP_ROOT')) exit; 
 
-// Příprava dat podle toho, zda vytváříme nebo upravujeme
 $isEdit = isset($editTemplate) && $editTemplate;
 $formId = $isEdit ? $editTemplate['id'] : '';
 $formTitle = $isEdit ? $editTemplate['title'] : '';
@@ -10,8 +9,6 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 ?>
 
 <div class="grid-2">
-    
-    <!-- Levý sloupec: Nástroj pro tvorbu formuláře -->
     <div class="card card-primary-top">
         <h3 style="margin-top:0;">
             <span class="material-symbols-outlined" style="vertical-align: middle;">build</span> 
@@ -35,9 +32,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 
             <div style="margin-top: 20px; padding: 15px; background: var(--background); border-radius: 8px;">
                 <strong>Struktura formuláře:</strong>
-                <div id="preview-area" style="margin-top: 10px; min-height: 50px; background: #fff; padding: 15px; border: 1px dashed #ccc;">
-                    <em style="color: #999;">Zatím nejsou přidána žádná pole. Použijte tlačítka níže.</em>
-                </div>
+                <div id="preview-area" style="margin-top: 10px; min-height: 50px; background: #fff; padding: 15px; border: 1px dashed #ccc;"></div>
             </div>
 
             <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -69,7 +64,6 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
         </form>
     </div>
 
-    <!-- Pravý sloupec: Seznam uložených šablon -->
     <div class="card">
         <h3 style="margin-top:0;"><span class="material-symbols-outlined" style="vertical-align: middle;">list_alt</span> Uložené šablony</h3>
         <?php if (empty($templates)): ?>
@@ -83,27 +77,19 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
                             <span style="font-size: 0.85em; color: var(--text-muted); display: inline-flex; align-items: center; margin-top: 4px;">
                                 <span class="material-symbols-outlined" style="font-size: 1.1em; margin-right: 4px;">schedule</span> 
                                 Odhad: <?= $tpl['estimated_minutes'] ?> min 
-                                
                                 <?php if (!empty($tpl['avg_duration'])): ?>
                                     <?php 
                                         $avgMins = floor($tpl['avg_duration'] / 60);
                                         $avgSecs = round($tpl['avg_duration'] % 60);
                                     ?>
-                                    <span style="color: var(--success); font-weight: bold; margin-left: 6px;" title="Skutečný průměrný čas techniků">
-                                        (Praxe: <?= $avgMins ?> min <?= $avgSecs ?> s)
-                                    </span>
+                                    <span style="color: var(--success); font-weight: bold; margin-left: 6px;">(Praxe: <?= $avgMins ?> min <?= $avgSecs ?> s)</span>
                                 <?php endif; ?>
-
                                 <span style="margin: 0 6px;">|</span> Polí: <?= count(json_decode($tpl['schema_json'], true) ?? []) ?>
                             </span>
                         </div>
                         <div style="display: flex; gap: 15px;">
-                            <a href="index.php?page=forms&edit_id=<?= $tpl['id'] ?>" style="color: var(--info); text-decoration: none;" title="Upravit">
-                                <span class="material-symbols-outlined">edit</span>
-                            </a>
-                            <a href="index.php?page=form_delete&id=<?= $tpl['id'] ?>" onclick="return confirm('Opravdu smazat tuto šablonu? Záznamy již vyplněné podle této šablony zůstanou zachovány.');" style="color: var(--danger); text-decoration: none;" title="Smazat">
-                                <span class="material-symbols-outlined">delete</span>
-                            </a>
+                            <a href="index.php?page=forms&edit_id=<?= $tpl['id'] ?>" style="color: var(--info); text-decoration: none;"><span class="material-symbols-outlined">edit</span></a>
+                            <a href="index.php?page=form_delete&id=<?= $tpl['id'] ?>" onclick="return confirm('Opravdu smazat tuto šablonu? Záznamy již vyplněné podle této šablony zůstanou zachovány.');" style="color: var(--danger); text-decoration: none;"><span class="material-symbols-outlined">delete</span></a>
                         </div>
                     </li>
                 <?php endforeach; ?>
@@ -116,47 +102,39 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
     let schema = <?= $formSchema ?>;
 
     document.addEventListener("DOMContentLoaded", function() {
+        // ZPĚTNÁ KOMPATIBILITA: Přiřazení ID starým polím bez ID
+        schema.forEach(field => {
+            if (!field.id) field.id = field.label; 
+        });
         renderPreview();
     });
 
-    function addField(type) {
-        let promptMsg = "Zadejte název pole (např. 'Hladina pH', 'Zapnutá filtrace'):";
-        let defaultLabel = "";
+    function generateId() {
+        return 'f_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    }
 
-        if (type === 'asset_status') {
-            promptMsg = "Zadejte název pro sledování provozu:";
-            defaultLabel = "Provozní stav zařízení";
-        } else if (type === 'photo') {
-            promptMsg = "Zadejte instrukci pro fotku (např. 'Vyfoťte celkový stav stroje'):";
-            defaultLabel = "Fotodokumentace";
-        }
+    function addField(type) {
+        let promptMsg = "Zadejte název pole:";
+        let defaultLabel = (type === 'asset_status') ? "Provozní stav zařízení" : ((type === 'photo') ? "Fotodokumentace" : "");
 
         let label = prompt(promptMsg, defaultLabel);
         if (!label) return;
 
-        let isRequired = false;
-        if (type !== 'asset_status') { 
-            isRequired = confirm("Má být toto pole POVINNÉ k vyplnění?\n\n[OK] = Ano, technik ho musí vyplnit\n[Zrušit] = Ne, pole bude volitelné");
-        } else {
-            isRequired = true;
-        }
-
-        let min = null;
-        let max = null;
-        let unit = '';
+        let isRequired = (type === 'asset_status') ? true : confirm("Má být toto pole POVINNÉ k vyplnění?\n\n[OK] = Ano\n[Zrušit] = Ne");
+        let min = null, max = null, unit = '';
 
         if (type === 'numeric_limit') {
-            let minStr = prompt("Zadejte MINIMÁLNÍ povolenou hodnotu (nebo nechcete-li hlídat, nechte prázdné):", "0");
+            let minStr = prompt("Zadejte MINIMÁLNÍ povolenou hodnotu (nebo nechte prázdné):", "0");
             let maxStr = prompt("Zadejte MAXIMÁLNÍ povolenou hodnotu:", "14");
             unit = prompt("Zadejte jednotku (např. mg/l, °C, bar):", "");
-            
             min = minStr !== "" ? parseFloat(minStr) : null;
             max = maxStr !== "" ? parseFloat(maxStr) : null;
         } else if (type === 'meter_reading') {
-            unit = prompt("Zadejte jednotku měřidla (např. m3, kWh):", "m3");
+            unit = prompt("Zadejte jednotku měřidla:", "m3");
         }
 
         schema.push({ 
+            id: generateId(), // GENERUJE UNIKÁTNÍ ID
             type: type, 
             label: label, 
             required: isRequired, 
@@ -167,20 +145,35 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
         renderPreview();
     }
 
-    function removeField(index) {
-        schema.splice(index, 1);
+    function editField(index) {
+        let field = schema[index];
+        let label = prompt("Upravte název pole:", field.label);
+        if (label === null) return; 
+        field.label = label; // Upravuje pouze název, ID zůstává nedotčeno!
+
+        if (field.type !== 'asset_status') { 
+            field.required = confirm("Má být toto pole POVINNÉ k vyplnění?\n\nAktuální stav: " + (field.required ? "Ano" : "Ne"));
+        }
+
+        if (field.type === 'numeric_limit') {
+            let minStr = prompt("Upravte MINIMÁLNÍ povolenou hodnotu:", field.min !== null ? field.min : "");
+            let maxStr = prompt("Upravte MAXIMÁLNÍ povolenou hodnotu:", field.max !== null ? field.max : "");
+            field.unit = prompt("Upravte jednotku:", field.unit || "");
+            field.min = minStr !== "" ? parseFloat(minStr) : null;
+            field.max = maxStr !== "" ? parseFloat(maxStr) : null;
+        } else if (field.type === 'meter_reading') {
+            field.unit = prompt("Upravte jednotku měřidla:", field.unit || "");
+        }
         renderPreview();
     }
 
+    function removeField(index) { schema.splice(index, 1); renderPreview(); }
+
     function moveField(index, direction) {
         if (direction === 'up' && index > 0) {
-            let temp = schema[index - 1];
-            schema[index - 1] = schema[index];
-            schema[index] = temp;
+            let temp = schema[index - 1]; schema[index - 1] = schema[index]; schema[index] = temp;
         } else if (direction === 'down' && index < schema.length - 1) {
-            let temp = schema[index + 1];
-            schema[index + 1] = schema[index];
-            schema[index] = temp;
+            let temp = schema[index + 1]; schema[index + 1] = schema[index]; schema[index] = temp;
         }
         renderPreview();
     }
@@ -190,7 +183,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
         const hiddenInput = document.getElementById('schema_json');
         
         if (schema.length === 0) {
-            previewArea.innerHTML = '<em style="color: #999;">Zatím nejsou přidána žádná pole. Použijte tlačítka níže.</em>';
+            previewArea.innerHTML = '<em style="color: #999;">Zatím nejsou přidána žádná pole.</em>';
             hiddenInput.value = '[]';
             return;
         }
@@ -208,16 +201,12 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 
             let extraInfo = '';
             if (field.type === 'numeric_limit') {
-                extraInfo = ` <span style="color:#d35400; font-size:0.85em;">[Min: ${field.min !== null ? field.min : 'neomezeno'}, Max: ${field.max !== null ? field.max : 'neomezeno'} ${field.unit}]</span>`;
+                extraInfo = ` <span style="color:#d35400; font-size:0.85em;">[Min: ${field.min !== null ? field.min : 'neomezeno'}, Max: ${field.max !== null ? field.max : 'neomezeno'} ${field.unit || ''}]</span>`;
             } else if (field.type === 'meter_reading') {
-                extraInfo = ` <span style="color:#2980b9; font-size:0.85em;">[Odečet měřidla: ${field.unit}]</span>`;
-            } else if (field.type === 'asset_status') {
-                extraInfo = ` <span style="color:#2c3e50; font-size:0.85em; font-weight:bold;">[Přepínač: V provozu / Odstaveno]</span>`;
-            } else if (field.type === 'photo') {
-                extraInfo = ` <span style="color:#e67e22; font-size:0.85em; font-weight:bold;">[Fotoaparát mobilu]</span>`;
+                extraInfo = ` <span style="color:#2980b9; font-size:0.85em;">[Odečet: ${field.unit || ''}]</span>`;
             }
 
-            let requiredStar = field.required ? '<span style="color: #e74c3c; font-weight: bold; margin-left: 4px;" title="Povinné pole">*</span>' : '';
+            let requiredStar = field.required ? '<span style="color: #e74c3c; font-weight: bold; margin-left: 4px;">*</span>' : '';
 
             html += `
                 <div style="padding: 10px; border: 1px solid var(--border-color); margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background: #fafafa;">
@@ -226,15 +215,10 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
                         <strong>${field.label}</strong>${requiredStar}${extraInfo}
                     </div>
                     <div style="display: flex; gap: 5px;">
-                        <button type="button" onclick="moveField(${index}, 'up')" style="background: none; border: none; color: #888; cursor: pointer;" title="Posunout nahoru">
-                            <span class="material-symbols-outlined">arrow_upward</span>
-                        </button>
-                        <button type="button" onclick="moveField(${index}, 'down')" style="background: none; border: none; color: #888; cursor: pointer;" title="Posunout dolů">
-                            <span class="material-symbols-outlined">arrow_downward</span>
-                        </button>
-                        <button type="button" onclick="removeField(${index})" style="background: none; border: none; color: var(--danger); cursor: pointer; margin-left: 10px;" title="Odebrat">
-                            <span class="material-symbols-outlined">close</span>
-                        </button>
+                        <button type="button" onclick="moveField(${index}, 'up')" style="background: none; border: none; color: #888; cursor: pointer;"><span class="material-symbols-outlined">arrow_upward</span></button>
+                        <button type="button" onclick="moveField(${index}, 'down')" style="background: none; border: none; color: #888; cursor: pointer;"><span class="material-symbols-outlined">arrow_downward</span></button>
+                        <button type="button" onclick="editField(${index})" style="background: none; border: none; color: var(--info); cursor: pointer; margin-left: 5px;"><span class="material-symbols-outlined">edit</span></button>
+                        <button type="button" onclick="removeField(${index})" style="background: none; border: none; color: var(--danger); cursor: pointer; margin-left: 5px;"><span class="material-symbols-outlined">close</span></button>
                     </div>
                 </div>
             `;
@@ -245,10 +229,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
     }
 
     function validateForm() {
-        if (schema.length === 0) {
-            alert('Formulář musí obsahovat alespoň jedno pole!');
-            return false;
-        }
+        if (schema.length === 0) { alert('Formulář musí obsahovat alespoň jedno pole!'); return false; }
         return true;
     }
 </script>

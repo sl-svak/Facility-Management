@@ -1,4 +1,4 @@
-#CMMS - Systém pro řízení údržby (Computerized Maintenance Management System)
+# CMMS - Systém pro řízení údržby (Computerized Maintenance Management System)
 
 🌍 Funkční web: http://cmms.wz.cz/
 

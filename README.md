@@ -1,6 +1,6 @@
 # CMMS - Systém pro řízení údržby (Computerized Maintenance Management System)
 
-🌍 **Funkční web:** [http://cmms.wz.cz/](http://cmms.wz.cz/)
+🌍 **Funkční web:** [https://cmms.wz.cz/](https://cmms.wz.cz/)
 
 Přihlašovací jména do testovací verze webu:
 - Přihlašovací jméno: **technik** - Heslo: **technik**

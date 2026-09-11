@@ -2,6 +2,10 @@
 
 🌍 **Funkční web:** [http://cmms.wz.cz/](http://cmms.wz.cz/)
 
+Přihlašovací jména do testovací verze webu:
+- Přihlašovací jméno: **technik** - Heslo: **technik**
+- Přihlašovací jméno: **dispečer** - Heslo: **dispečer**
+---
 Lehká, rychlá a mobilní webová aplikace pro digitální řízení údržby, revize strojů a správu závad. Navrženo s důrazem na uživatelskou přívětivost pro techniky v terénu a bezproblémový běh i na běžných sdílených webhostinzích s přísnými limity.
 
 ## 🚀 Hlavní funkce

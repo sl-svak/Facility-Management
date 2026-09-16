@@ -13,10 +13,26 @@ class InspectionController {
                 'forms' => [],
                 'completedTodayForms' => [],
                 'futureForms' => [],
-                'openTickets' => []
+                'openTickets' => [],
+                'departmentWarning' => false
             ]);
             return;
         }
+
+        // --- NOVÉ: LOGIKA PRO MĚKKÉ VAROVÁNÍ (SOFT WARNING) ---
+        require_once APP_ROOT . '/app/Models/UserModel.php';
+        $currentUser = UserModel::getById($_SESSION['user_id'] ?? 0);
+        $userDepts = $currentUser['departments'] ?? [];
+        
+        $departmentWarning = false;
+        // Pokud má uživatel omezené úseky (není celofiremní) a stroj do nějakého úseku patří
+        if (!empty($userDepts) && $asset['department_id'] !== null) {
+            // Zkontrolujeme, zda se úsek stroje nachází v seznamu povolených úseků uživatele
+            if (!in_array($asset['department_id'], $userDepts)) {
+                $departmentWarning = true; // Stroj je z cizího úseku!
+            }
+        }
+        // --------------------------------------------------------
 
         $workweek_days = SettingModel::get('workweek_days', 5);
         $shift_start_hour = (int)SettingModel::get('shift_start_hour', 0);
@@ -83,7 +99,8 @@ class InspectionController {
             'forms' => $forms,
             'completedTodayForms' => $completedTodayForms,
             'futureForms' => $futureForms,
-            'openTickets' => $openTickets
+            'openTickets' => $openTickets,
+            'departmentWarning' => $departmentWarning // Předání varování do šablony
         ]);
     }
 
@@ -133,7 +150,6 @@ class InspectionController {
                 }
             }
 
-            // Načtení šablony pro správný překlad ID -> NÁZEV v tiketech
             $template = FormModel::getById($form_template_id);
             $schema = json_decode($template['schema_json'] ?? '[]', true);
             $labelMap = [];
@@ -185,7 +201,7 @@ class InspectionController {
                 $stmtTicket->execute([$inspectionId, $asset_id, $ticketTitle]);
             }
 
-            header('Location: index.php?page=inspections&saved=1');
+            header('Location: index.php?page=qr_reader&saved=1');
             exit;
         }
     }
@@ -246,7 +262,7 @@ class InspectionController {
 
         foreach ($rawSeries as $key => $points) {
             $isCounter = isset($fieldTypes[$key]) && $fieldTypes[$key] === 'meter_reading';
-            $displayTitle = $labelMap[$key] ?? $key; // Překlad ID na text pro graf
+            $displayTitle = $labelMap[$key] ?? $key; 
 
             if ($isCounter) {
                 $deltaPoints = []; $prevVal = null;

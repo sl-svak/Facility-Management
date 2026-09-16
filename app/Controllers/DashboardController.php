@@ -3,39 +3,61 @@ class DashboardController {
     public static function index() {
         $pdo = Database::getConnection();
 
-        // AUTO-PATCH DATABÁZE: Přidání sloupce pro provozní stav (pokud ještě neexistuje)
-        try {
-            $pdo->exec("ALTER TABLE assets ADD COLUMN operational_status VARCHAR(20) DEFAULT 'running'");
-        } catch (Exception $e) { 
-            // Ignorujeme chybu, sloupec už zřejmě existuje
+        try { $pdo->exec("ALTER TABLE assets ADD COLUMN operational_status VARCHAR(20) DEFAULT 'running'"); } catch (Exception $e) {}
+
+        require_once APP_ROOT . '/app/Models/UserModel.php';
+        $currentUser = UserModel::getById($_SESSION['user_id']);
+        $userDepts = $currentUser['departments'] ?? [];
+
+        $deptFilterAsset = "";
+        $deptFilterJoin = "";
+        $params = [];
+        
+        if (!empty($userDepts)) {
+            $in = implode(',', array_map('intval', $userDepts));
+            $deptFilterAsset = " AND (department_id IN ($in) OR department_id IS NULL)";
+            $deptFilterJoin = " AND (a.department_id IN ($in) OR a.department_id IS NULL)";
         }
 
-        // 1. ZÁKLADNÍ STATISTIKY (počítáme jen stroje v provozu)
         $stats = [];
-        $stats['assets_count'] = $pdo->query("SELECT COUNT(*) FROM assets WHERE is_active = 1 AND operational_status = 'running'")->fetchColumn();
-        $stats['inspections_count'] = $pdo->query("SELECT COUNT(*) FROM inspections")->fetchColumn();
-        $stats['open_tickets'] = $pdo->query("SELECT COUNT(*) FROM tickets WHERE status = 'open'")->fetchColumn();
+        
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM assets WHERE is_active = 1 AND operational_status = 'running'" . $deptFilterAsset);
+        $stmt->execute($params);
+        $stats['assets_count'] = $stmt->fetchColumn();
+        
+        $stmt = $pdo->prepare("SELECT COUNT(i.id) FROM inspections i JOIN assets a ON i.asset_id = a.id WHERE 1=1" . $deptFilterJoin);
+        $stmt->execute($params);
+        $stats['inspections_count'] = $stmt->fetchColumn();
+        
+        $stmt = $pdo->prepare("SELECT COUNT(t.id) FROM tickets t JOIN assets a ON t.asset_id = a.id WHERE t.status = 'open'" . $deptFilterJoin);
+        $stmt->execute($params);
+        $stats['open_tickets'] = $stmt->fetchColumn();
 
-        // 2. HISTORIE POSLEDNÍCH KONTROL
-        $stmt = $pdo->query("
+        $stmt = $pdo->prepare("
             SELECT i.id, i.status, i.created_at, a.name as asset_name, t.title as template_name, u.first_name, u.last_name
             FROM inspections i
             JOIN assets a ON i.asset_id = a.id
             JOIN form_templates t ON i.form_template_id = t.id
             LEFT JOIN users u ON i.technician_id = u.id
+            WHERE 1=1 $deptFilterJoin
             ORDER BY i.created_at DESC
             LIMIT 10
         ");
+        $stmt->execute($params);
         $recent_inspections = $stmt->fetchAll();
-
-        // 3. SEMAFOR ÚDRŽBY
         
-        // Načtení nastavení pracovního týdne (výchozí hodnota je 5 dní, pokud není nastaveno jinak)
         $workweek_days = SettingModel::get('workweek_days', 5);
+        $shift_start_hour = (int)SettingModel::get('shift_start_hour', 0);
         
-        $stmt = $pdo->query("
+        $offset_seconds = $shift_start_hour * 3600;
+        $logical_now = time() - $offset_seconds;
+        $today_logical_midnight = strtotime(date('Y-m-d', $logical_now));
+
+        // PŘIDÁNO: Načítáme i "a.id as asset_id", abychom věděli, ke kterému stroji tiket založit
+        $stmt = $pdo->prepare("
             SELECT 
                 r.id, 
+                a.id as asset_id,
                 a.name as asset_name, 
                 a.operational_status,
                 t.title as template_name, 
@@ -45,15 +67,14 @@ class DashboardController {
             FROM asset_form_rules r
             JOIN assets a ON r.asset_id = a.id
             JOIN form_templates t ON r.form_template_id = t.id
-            WHERE a.is_active = 1 AND t.is_active = 1
+            WHERE a.is_active = 1 AND t.is_active = 1 $deptFilterJoin
         ");
+        $stmt->execute($params);
         $rules = $stmt->fetchAll();
 
         $traffic_lights = [];
-        $now = time();
 
         foreach ($rules as $rule) {
-            // IGNOROVÁNÍ ODSTAVENÝCH STROJŮ
             if ($rule['operational_status'] === 'stopped') {
                 continue; 
             }
@@ -70,40 +91,59 @@ class DashboardController {
                 $item['status'] = 'red';
                 $item['next_due_formatted'] = 'Ihned (Nekontrolováno)';
                 $item['sort_score'] = 1;
+                $item['days_remaining'] = -1; // Vynucení záporné hodnoty pro nově přidané stroje bez historie
             } else {
-                $last_time = strtotime($rule['last_inspection']);
-                $next_due = strtotime("+{$rule['period_days']} days", $last_time);
+                $last_real_time = strtotime($rule['last_inspection']);
+                $last_logical_time = $last_real_time - $offset_seconds;
+                $last_logical_date = strtotime(date('Y-m-d', $last_logical_time));
                 
-                // --- CHYTRÁ KOREKCE NA VÍKENDY ---
+                $next_due_logical = strtotime("+{$rule['period_days']} days", $last_logical_date);
+                
                 if ((int)$workweek_days === 5) {
-                    $day_of_week = date('N', $next_due); // Vrací 1 (Po) až 7 (Ne)
-                    
+                    $day_of_week = date('N', $next_due_logical);
                     if ($day_of_week == 6) { 
-                        // Termín vychází na sobotu -> Posuneme o 2 dny na pondělí
-                        $next_due = strtotime("+2 days", $next_due);
+                        $next_due_logical = strtotime("+2 days", $next_due_logical);
                     } elseif ($day_of_week == 7) { 
-                        // Termín vychází na neděli -> Posuneme o 1 den na pondělí
-                        $next_due = strtotime("+1 day", $next_due);
+                        $next_due_logical = strtotime("+1 day", $next_due_logical);
                     }
                 }
                 
-                $warning_time = strtotime("-{$rule['warning_days']} days", $next_due);
+                $item['next_due_formatted'] = date('d.m.Y', $next_due_logical);
                 
-                $item['next_due_formatted'] = date('d.m.Y', $next_due);
-                $diff = $next_due - $now;
-                $item['days_remaining'] = floor($diff / (60 * 60 * 24));
-
-                if ($now > $next_due) {
-                    $item['status'] = 'red'; 
-                    $item['sort_score'] = 1;
-                } elseif ($now >= $warning_time) {
-                    $item['status'] = 'orange'; 
-                    $item['sort_score'] = 2;
-                } else {
-                    $item['status'] = 'green'; 
-                    $item['sort_score'] = 3;
-                }
+                $diff_seconds = $next_due_logical - $today_logical_midnight;
+                $item['days_remaining'] = (int)round($diff_seconds / 86400);
             }
+
+            // --- VYHODNOCENÍ BAREV A ZAKLÁDÁNÍ TIKETŮ ---
+            if ($item['days_remaining'] < 0) {
+                $item['status'] = 'red'; 
+                $item['sort_score'] = 1;
+
+                // AUTOMATICKÉ VYTVOŘENÍ TIKETU PRO OPOMENUTOU KONTROLU
+                // Přidáme do názvu konkrétní datum termínu, abychom ho unikátně odlišili
+                $ticketTitle = "Opomenutá kontrola: " . $rule['template_name'] . " (termín: " . $item['next_due_formatted'] . ")";
+                
+                // Zkontrolujeme, zda už tento tiket pro tento konkrétní termín neexistuje (i kdyby už byl UZAVŘENÝ)
+                $stmtCheck = $pdo->prepare("SELECT id FROM tickets WHERE asset_id = ? AND title = ?");
+                $stmtCheck->execute([$rule['asset_id'], $ticketTitle]);
+                
+                if (!$stmtCheck->fetchColumn()) {
+                    // Tiket neexistuje -> Založíme ho
+                    $stmtInsert = $pdo->prepare("INSERT INTO tickets (asset_id, title, status) VALUES (?, ?, 'open')");
+                    $stmtInsert->execute([$rule['asset_id'], $ticketTitle]);
+                    
+                    // Rovnou zvedneme počítadlo otevřených tiketů nahoře na stránce
+                    $stats['open_tickets']++;
+                }
+
+            } elseif ($item['days_remaining'] <= $rule['warning_days']) {
+                $item['status'] = 'orange'; 
+                $item['sort_score'] = 2;
+            } else {
+                $item['status'] = 'green'; 
+                $item['sort_score'] = 3;
+            }
+            
             $traffic_lights[] = $item;
         }
 

@@ -9,9 +9,15 @@
     --warning: #f39c12;
     --info: #2980b9;
     --background: #f4f7f6;
+    --card-bg: #ffffff;
     --text-main: #333333;
     --text-muted: #666666;
     --border-color: #eeeeee;
+
+    /* Proměnné pro boční menu */
+    --sidebar-bg: #2c3e50;
+    --sidebar-hover: #34495e;
+    --text-light: #ecf0f1;
 }
 
 /* ==========================================================================
@@ -24,13 +30,40 @@ body {
     margin: 0;
     padding: 0;
     line-height: 1.6;
+    
+    /* Flexbox pro hlavní rozvržení s bočním menu */
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
 }
+
+/* ==========================================================================
+   BOČNÍ MENU A HLAVNÍ OBSAH (LAYOUT)
+   ========================================================================== */
+.sidebar { width: 250px; min-width: 250px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--text-light); display: flex; flex-direction: column; transition: 0.3s; z-index: 1000; }
+.sidebar-header { padding: 15px 20px; font-size: 1.5em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1); }
+.logout-btn { color: #e74c3c; text-decoration: none; display: flex; align-items: center; padding: 5px; border-radius: 4px; transition: 0.2s; }
+.logout-btn:hover { color: #c0392b; background: rgba(255,255,255,0.1); }
+.menu-toggle { display: none; background: none; border: none; color: white; cursor: pointer; padding: 5px; margin-right: 10px; }
+
+.nav-menu { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+.nav-menu li a { display: flex; align-items: center; padding: 15px 20px; color: var(--text-light); text-decoration: none; transition: 0.2s; border-left: 4px solid transparent; }
+.nav-menu li a:hover, .nav-menu li a.active { background: var(--sidebar-hover); border-left-color: var(--info); }
+.nav-menu li a .material-symbols-outlined { margin-right: 15px; }
+
+.user-info { padding: 15px 20px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.9em; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; transition: background 0.2s; }
+.user-info:hover { background: rgba(255,255,255,0.05); }
+
+.main-content { flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; background-color: var(--background); }
+.topbar { background: var(--card-bg); padding: 15px 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+.topbar h2 { margin: 0; font-size: 1.2em; color: var(--text-main); }
+.content-wrapper { padding: 20px; flex-grow: 1; overflow-y: auto; }
 
 /* ==========================================================================
    KOMPONENTY: KARTY (CARDS)
    ========================================================================== */
 .card {
-    background: #ffffff;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -72,6 +105,15 @@ body {
     width: 100%;
 }
 
+/* Blokace tlačítka při odesílání */
+.btn-disabled, .btn:disabled {
+    background-color: #95a5a6 !important;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
 /* ==========================================================================
    TABULKY
    ========================================================================== */
@@ -88,8 +130,8 @@ body {
 .table th {
     padding: 12px;
     color: var(--text-main);
-    border-bottom: 2px solid #ddd;
-    background: #f9f9f9;
+    border-bottom: 2px solid var(--border-color);
+    background: rgba(0,0,0,0.02);
 }
 
 .table td {
@@ -129,6 +171,56 @@ body {
     gap: 20px;
 }
 
+/* ==========================================================================
+   RESPONZIVNÍ DESIGN (MOBILY A TABLETY)
+   ========================================================================== */
 @media (max-width: 900px) {
     .grid-2 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; flex-direction: column; }
+    .sidebar-header { padding: 10px 15px; }
+    .menu-toggle { display: block; }
+    .nav-menu, .user-info { display: none; width: 100%; background: var(--sidebar-bg); }
+    .sidebar.open .nav-menu, .sidebar.open .user-info { display: flex; flex-direction: column; }
+    .nav-menu li a { padding: 12px 20px; border-left: none; }
+    .topbar { padding: 10px 15px; }
+    .content-wrapper { padding: 10px 10px 90px 10px; }
+}
+
+/* ==========================================================================
+   TMAVÝ REŽIM (DARK MODE)
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary: #34495e;
+        --primary-hover: #465c71;
+        --background: #121212;
+        --card-bg: #1e1e1e;
+        --text-main: #e0e0e0;
+        --text-muted: #aaaaaa;
+        --border-color: #333333;
+    }
+    
+    input, select, textarea {
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+        border: 1px solid #444;
+    }
+    
+    .table th {
+        background: #252525;
+    }
+    
+    .badge-open {
+        background: #4a191e;
+        color: #ffb3b8;
+    }
+    
+    .badge-closed {
+        background: #153820;
+        color: #a8deb8;
+    }
 }

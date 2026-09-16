@@ -1,5 +1,15 @@
 <?php if (!defined('APP_ROOT')) exit; ?>
 
+<?php if (!empty($departmentWarning)): ?>
+    <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 2px solid #ffeeba; display: flex; align-items: center; gap: 15px;">
+        <span class="material-symbols-outlined" style="font-size: 2em;">warning</span>
+        <div>
+            <strong style="display: block; font-size: 1.1em; margin-bottom: 5px;">Mimo váš úsek</strong>
+            Toto zařízení organizačně nespadá pod úseky, do kterých jste přiřazen. Můžete nahlásit závadu nebo provést mimořádný úkon, dbejte však zvýšené opatrnosti.
+        </div>
+    </div>
+<?php endif; ?>
+
 <div class="card card-primary-top">
     <?php if (empty($asset)): ?>
         <div style="padding: 25px; background: #fdeeed; color: #c0392b; border-radius: 6px; border: 1px solid #f5c6cb; text-align: center;">

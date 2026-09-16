@@ -1,7 +1,16 @@
 # 1. Zákaz procházení obsahu složek na celém webu
 Options -Indexes
 
-# 2. Ochrana specifických souborů před přímým zobrazením
+# 2. Vynucení HTTPS (ošetřeno pro proxy servery hostingu)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteCond %{HTTP:X-Forwarded-SSL} !on
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# 3. Ochrana specifických souborů před přímým zobrazením
 <FilesMatch "^(config\.sample\.php|\.htaccess|install\.php)$">
     <IfModule mod_authz_core.c>
         Require all denied
@@ -12,7 +21,7 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
-# 3. Zabezpečení proti kliknutí přes iframe (Clickjacking)
+# 4. Zabezpečení proti kliknutí přes iframe (Clickjacking)
 <IfModule mod_headers.c>
     Header always append X-Frame-Options SAMEORIGIN
     Header set X-XSS-Protection "1; mode=block"

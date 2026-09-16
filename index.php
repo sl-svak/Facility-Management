@@ -1,14 +1,12 @@
 <?php
 session_start();
 
-// nastavení blokování / zobrazení chybových hlášení
+// -----------------------------------------------------------------------------
+// 0. NASTAVENÍ ZOBRAZOVÁNÍ CHYB (Produkční režim)
+// -----------------------------------------------------------------------------
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 error_reporting(0);
-
-//ini_set('display_errors', 1);
-//ini_set('display_startup_errors', 1);
-//error_reporting(E_ALL);
 
 // 1. Kontrola konfigurace (Instalátor)
 $configFile = __DIR__ . '/config/config.php';
@@ -22,7 +20,6 @@ require_once $configFile;
 
 // -----------------------------------------------------------------------------
 // 2. CHYTRÝ AUTOLOADER (Automatické načítání tříd)
-// Tímto nahrazujeme všechny předchozí 'require_once'
 // -----------------------------------------------------------------------------
 spl_autoload_register(function ($class_name) {
     $directories = [
@@ -38,6 +35,38 @@ spl_autoload_register(function ($class_name) {
         }
     }
 });
+
+// -----------------------------------------------------------------------------
+// 2.5 VYNUCENÍ HTTPS Z NASTAVENÍ APLIKACE
+// -----------------------------------------------------------------------------
+try {
+    if (class_exists('SettingModel')) {
+        $force_https = SettingModel::get('force_https', '0');
+
+        if ($force_https === '1') {
+            $isSecure = false;
+            
+            if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+                $isSecure = true;
+            } 
+            elseif (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+                $isSecure = true;
+            } 
+            elseif (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on') {
+                $isSecure = true;
+            }
+
+            if (!$isSecure) {
+                $redirectUrl = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                header('HTTP/1.1 301 Moved Permanently');
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
+        }
+    }
+} catch (Throwable $e) {
+    // Tichý pád při inicializaci
+}
 
 // -----------------------------------------------------------------------------
 // 3. ZPRACOVÁNÍ ODHLÁŠENÍ A PŘIHLÁŠENÍ (LOGIN LOGIKA)
@@ -61,11 +90,15 @@ if ($page === 'login') {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
         
-        if (Auth::login($username, $password)) {
+        $loginResult = Auth::login($username, $password);
+        
+        if ($loginResult === 'success') {
             $redirect = $_SESSION['redirect_after_login'] ?? 'index.php?page=dashboard';
             unset($_SESSION['redirect_after_login']);
             header('Location: ' . $redirect);
             exit;
+        } elseif ($loginResult === 'blocked') {
+            $error = 'Z bezpečnostních důvodů byla vaše IP adresa dočasně zablokována. Zkuste to prosím za 15 minut.';
         } else {
             $error = 'Neplatné přihlašovací údaje nebo neaktivní účet.';
         }
@@ -83,6 +116,14 @@ if (!Auth::isLoggedIn()) {
         $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
     }
     header('Location: index.php?page=login');
+    exit;
+}
+
+// -----------------------------------------------------------------------------
+// 4.5 VYNUCENÁ ZMĚNA HESLA
+// -----------------------------------------------------------------------------
+if (Auth::isLoggedIn() && !empty($_SESSION['force_password_change']) && !in_array($page, ['profile', 'profile_save', 'logout'])) {
+    header('Location: index.php?page=profile&forced=1');
     exit;
 }
 
@@ -107,14 +148,12 @@ function renderView($viewName, $variables = []) {
 // -----------------------------------------------------------------------------
 // 6. ROUTER S OCHRANOU ROLÍ (VYHAZOVAČ)
 // -----------------------------------------------------------------------------
-// Tříúrovňový systém oprávnění
-// Úroveň 1: Technik (Všichni přihlášení)
-// Úroveň 2: Dispečer + Admin
-// Úroveň 3: Admin
-// -----------------------------------------------------------------------------
 switch ($page) {
-    
-    // --- ÚROVEŇ 1: PŘÍSTUP PRO VŠECHNY (Technik, Dispečer, Admin) ---
+    case 'profile':         UserController::profile(); break;
+    case 'profile_preferences': UserController::savePreferences(); break;
+    case 'profile_save':    UserController::changePassword(); break;
+    case 'qr_reader':       renderView('qr_reader', ['pageTitle' => 'Skenování QR']); break;
+
     case 'dashboard':       DashboardController::index(); break;
     case 'scan':            InspectionController::scan(); break;
     case 'inspection_fill': InspectionController::fill(); break;
@@ -129,23 +168,27 @@ switch ($page) {
         InspectionController::stats();
         break;
 
-    // --- ÚROVEŇ 2: PŘÍSTUP POUZE PRO DISPEČERY A ADMINY ---
-    case 'assets':          Auth::requireRole(['admin', 'dispatcher']); AssetController::index(); break;
-    case 'asset_create':    Auth::requireRole(['admin', 'dispatcher']); AssetController::create(); break;
-    case 'asset_delete':    Auth::requireRole(['admin', 'dispatcher']); AssetController::delete(); break;
+    case 'assets':          Auth::requireRole(['admin', 'manager']); AssetController::index(); break;
+    case 'asset_create':    Auth::requireRole(['admin', 'manager']); AssetController::create(); break;
+    case 'asset_delete':    Auth::requireRole(['admin', 'manager']); AssetController::delete(); break;
+    case 'asset_edit':      Auth::requireRole(['admin', 'manager']); AssetController::edit(); break;
+    case 'asset_update':    Auth::requireRole(['admin', 'manager']); AssetController::update(); break;
     
-    case 'forms':           Auth::requireRole(['admin', 'dispatcher']); FormController::index(); break;
-    case 'form_create':     Auth::requireRole(['admin', 'dispatcher']); FormController::create(); break;
-    case 'form_delete':     Auth::requireRole(['admin', 'dispatcher']); FormController::delete(); break;
+    case 'departments':        Auth::requireRole(['admin', 'manager']); DepartmentController::index(); break;
+    case 'department_create':  Auth::requireRole(['admin', 'manager']); DepartmentController::create(); break;
+    case 'department_delete':  Auth::requireRole(['admin', 'manager']); DepartmentController::delete(); break;
     
-    case 'plans':           Auth::requireRole(['admin', 'dispatcher']); PlanController::index(); break;
-    case 'plan_create':     Auth::requireRole(['admin', 'dispatcher']); PlanController::create(); break;
-    case 'plan_delete':     Auth::requireRole(['admin', 'dispatcher']); PlanController::delete(); break;
+    case 'forms':           Auth::requireRole(['admin', 'manager']); FormController::index(); break;
+    case 'form_create':     Auth::requireRole(['admin', 'manager']); FormController::create(); break;
+    case 'form_delete':     Auth::requireRole(['admin', 'manager']); FormController::delete(); break;
     
-    case 'reports':         Auth::requireRole(['admin', 'dispatcher']); ReportController::index(); break;
-    case 'report_generate': Auth::requireRole(['admin', 'dispatcher']); ReportController::generate(); break;
+    case 'plans':           Auth::requireRole(['admin', 'manager']); PlanController::index(); break;
+    case 'plan_create':     Auth::requireRole(['admin', 'manager']); PlanController::create(); break;
+    case 'plan_delete':     Auth::requireRole(['admin', 'manager']); PlanController::delete(); break;
+    
+    case 'reports':         Auth::requireRole(['admin', 'manager']); ReportController::index(); break;
+    case 'report_generate': Auth::requireRole(['admin', 'manager']); ReportController::generate(); break;
 
-    // --- ÚROVEŇ 3: PŘÍSTUP POUZE PRO ADMINY ---
     case 'users':           Auth::requireRole('admin'); UserController::index(); break;
     case 'user_create':     Auth::requireRole('admin'); UserController::create(); break;
     case 'user_edit':       Auth::requireRole('admin'); UserController::edit(); break;
@@ -155,5 +198,12 @@ switch ($page) {
     case 'settings':        Auth::requireRole('admin'); SettingsController::index(); break;
     case 'settings_save':   Auth::requireRole('admin'); SettingsController::save(); break;
     
+    case 'security_logs':   
+        Auth::requireRole('admin'); 
+        $pdo = Database::getConnection();
+        $stmt = $pdo->query("SELECT * FROM login_logs ORDER BY attempt_time DESC LIMIT 200");
+        renderView('security_logs', ['pageTitle' => 'Bezpečnostní deník', 'logs' => $stmt->fetchAll()]); 
+        break;
+        
     default:                DashboardController::index(); break;
 }

@@ -106,14 +106,24 @@
                     </div>
                 </div>
 
+                <!-- NOVÝ, LÉPE KONTRASTNÍ BLOK PRO PODPIS -->
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; font-weight: bold; margin-bottom: 5px; color: #2c3e50;">Podpis opraváře *</label>
-                    <div style="background: #fff; border: 1px dashed #95a5a6; border-radius: 6px; padding: 10px; text-align: center;">
-                        <canvas id="sigCanvas" width="400" height="150" style="background: #fff; border: 1px solid #ecf0f1; touch-action: none; max-width: 100%; border-radius: 4px;"></canvas>
+                    
+                    <div style="background: rgba(0,0,0,0.03); border: 1px solid #bdc3c7; border-radius: 6px; padding: 15px; text-align: center;">
+                        
+                        <span style="display: block; margin-bottom: 10px; font-size: 0.85em; color: #7f8c8d; text-transform: uppercase; font-weight: bold;">
+                            Nakreslete podpis do bílého pole níže ↓
+                        </span>
+                        
+                        <canvas id="sigCanvas" width="400" height="150" style="background: #ffffff; border: 2px dashed #3498db; border-radius: 4px; cursor: crosshair; touch-action: none; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin: 0 auto;"></canvas>
+                        
                         <input type="hidden" name="resolution_signature" id="sigInput">
+                        
                         <br>
-                        <button type="button" onclick="clearSignature()" class="btn" style="background: #ecf0f1; color: #333; margin-top: 10px; font-weight: bold;">
-                            <span class="material-symbols-outlined" style="vertical-align: middle;">ink_eraser</span> Vymazat podpis
+                        
+                        <button type="button" onclick="clearSignature()" class="btn" style="margin-top: 15px; background: #e2e8f0; color: #475569; border: 1px solid #cbd5e1; padding: 8px 15px;">
+                            <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.2em;">ink_eraser</span> Vymazat podpis
                         </button>
                     </div>
                 </div>

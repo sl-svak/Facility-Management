@@ -1,5 +1,4 @@
 <?php
-
 //============================================================+
 // File name   : example_006.php
 // Begin       : 2008-03-04
@@ -23,55 +22,52 @@
  * @abstract TCPDF - Example: WriteHTML and RTL support
  * @author Nicola Asuni
  * @since 2008-03-04
- * @group html
- * @group rtl
- * @group pdf
  */
 
 // Include the main TCPDF library (search for installation path).
-require_once 'tcpdf_include.php';
+require_once('tcpdf_include.php');
 
 // create new PDF document
 $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
 
 // set document information
-$pdf->setCreator(PDF_CREATOR);
-$pdf->setAuthor('Nicola Asuni');
-$pdf->setTitle('TCPDF Example 006');
-$pdf->setSubject('TCPDF Tutorial');
-$pdf->setKeywords('TCPDF, PDF, example, test, guide');
+$pdf->SetCreator(PDF_CREATOR);
+$pdf->SetAuthor('Nicola Asuni');
+$pdf->SetTitle('TCPDF Example 006');
+$pdf->SetSubject('TCPDF Tutorial');
+$pdf->SetKeywords('TCPDF, PDF, example, test, guide');
 
 // set default header data
-$pdf->setHeaderData(PDF_HEADER_LOGO, PDF_HEADER_LOGO_WIDTH, PDF_HEADER_TITLE . ' 006', PDF_HEADER_STRING);
+$pdf->SetHeaderData(PDF_HEADER_LOGO, PDF_HEADER_LOGO_WIDTH, PDF_HEADER_TITLE.' 006', PDF_HEADER_STRING);
 
 // set header and footer fonts
-$pdf->setHeaderFont([PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN]);
-$pdf->setFooterFont([PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA]);
+$pdf->setHeaderFont(Array(PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN));
+$pdf->setFooterFont(Array(PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA));
 
 // set default monospaced font
-$pdf->setDefaultMonospacedFont(PDF_FONT_MONOSPACED);
+$pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
 
 // set margins
-$pdf->setMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
-$pdf->setHeaderMargin(PDF_MARGIN_HEADER);
-$pdf->setFooterMargin(PDF_MARGIN_FOOTER);
+$pdf->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
+$pdf->SetHeaderMargin(PDF_MARGIN_HEADER);
+$pdf->SetFooterMargin(PDF_MARGIN_FOOTER);
 
 // set auto page breaks
-$pdf->setAutoPageBreak(true, PDF_MARGIN_BOTTOM);
+$pdf->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
 
 // set image scale factor
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
 
 // set some language-dependent strings (optional)
-if (@file_exists(dirname(__FILE__) . '/lang/eng.php')) {
-    require_once dirname(__FILE__) . '/lang/eng.php';
-    $pdf->setLanguageArray($l);
+if (@file_exists(dirname(__FILE__).'/lang/eng.php')) {
+	require_once(dirname(__FILE__).'/lang/eng.php');
+	$pdf->setLanguageArray($l);
 }
 
 // ---------------------------------------------------------
 
 // set font
-$pdf->setFont('dejavusans', '', 10);
+$pdf->SetFont('dejavusans', '', 10);
 
 // add a page
 $pdf->AddPage();
@@ -118,6 +114,7 @@ List example:
 
 // output the HTML content
 $pdf->writeHTML($html, true, false, true, false, '');
+
 
 // output some RTL HTML content
 $html = '<div style="text-align:center">The words &#8220;<span dir="rtl">&#1502;&#1494;&#1500; [mazel] &#1496;&#1493;&#1489; [tov]</span>&#8221; mean &#8220;Congratulations!&#8221;</div>';
@@ -168,7 +165,7 @@ $html = '<h2>HTML TABLE:</h2>
 		<td>4B</td>
 	</tr>
 	<tr>
-		<td>' . $subtable . '</td>
+		<td>'.$subtable.'</td>
 		<td bgcolor="#0000FF" color="yellow" align="center">A2 € &euro; &#8364; &amp; è &egrave;<br/>A2 € &euro; &#8364; &amp; è &egrave;</td>
 		<td bgcolor="#FFFF00" align="left"><font color="#FF0000">Red</font> Yellow BG</td>
 		<td>4C</td>
@@ -197,7 +194,7 @@ $pdf->writeHTML($html, true, false, true, false, '');
 
 $html = '<span color="red">red</span> <span color="green">green</span> <span color="blue">blue</span><br /><span color="red">red</span> <span color="green">green</span> <span color="blue">blue</span>';
 
-$pdf->setFillColor(255, 255, 0);
+$pdf->SetFillColor(255,255,0);
 
 $pdf->writeHTMLCell(0, 0, '', '', $html, 'LRTB', 1, 0, true, 'L', true);
 $pdf->writeHTMLCell(0, 0, '', '', $html, 'LRTB', 1, 1, true, 'C', true);
@@ -227,20 +224,6 @@ $html = '<h1>Image alignments on HTML table</h1>
 // output the HTML content
 $pdf->writeHTML($html, true, false, true, false, '');
 
-// create some HTML content
-$html = '<h1>Embedded Images</h1>
-<table cellpadding="1" cellspacing="1" border="1" style="text-align:center;">
-<tr><td>src="@..." </td><td><img src="@DATA1@" border="0" height="41" width="41" /></td></tr>
-<tr><td>src="data..."</td><td><img src="@DATA2@" border="0" height="41" width="41" /></td></tr>
-</table>';
-
-$data = base64_encode(file_get_contents('images/logo_example.png'));
-$html = str_replace('@DATA1@', '@' . $data, $html);
-$html = str_replace('@DATA2@', 'data:image/png;base64,' . $data, $html);
-
-// output the HTML content
-$pdf->writeHTML($html, true, false, true, false, '');
-
 // reset pointer to the last page
 $pdf->lastPage();
 
@@ -253,12 +236,9 @@ $pdf->AddPage();
 $textcolors = '<h1>HTML Text Colors</h1>';
 $bgcolors = '<hr /><h1>HTML Background Colors</h1>';
 
-// The web color map is provided by tc-lib-color (the values carry a
-// trailing alpha component that is stripped to match the legacy output).
-foreach (\Com\Tecnick\Color\Web::WEBHEX as $k => $v) {
-    $v = substr($v, 0, 6);
-    $textcolors .= '<span color="#' . $v . '">' . $v . '</span> ';
-    $bgcolors .= '<span bgcolor="#' . $v . '" color="#333333">' . $v . '</span> ';
+foreach(TCPDF_COLORS::$webcolor as $k => $v) {
+	$textcolors .= '<span color="#'.$v.'">'.$v.'</span> ';
+	$bgcolors .= '<span bgcolor="#'.$v.'" color="#333333">'.$v.'</span> ';
 }
 
 // output the HTML content
@@ -283,7 +263,7 @@ $html1 = 'Default <font face="courier">Courier <font face="helvetica">Helvetica 
 $html2 = '<small>small text</small> normal <small>small text</small> normal <sub>subscript</sub> normal <sup>superscript</sup> normal';
 $html3 = '<font size="10" color="#ff7f50">The</font> <font size="10" color="#6495ed">quick</font> <font size="14" color="#dc143c">brown</font> <font size="18" color="#008000">fox</font> <font size="22"><a href="http://www.tcpdf.org">jumps</a></font> <font size="22" color="#a0522d">over</font> <font size="18" color="#da70d6">the</font> <font size="14" color="#9400d3">lazy</font> <font size="10" color="#4169el">dog</font>.';
 
-$html = $html1 . '<br />' . $html2 . '<br />' . $html3 . '<br />' . $html3 . '<br />' . $html2;
+$html = $html1.'<br />'.$html2.'<br />'.$html3.'<br />'.$html3.'<br />'.$html2;
 
 // output the HTML content
 $pdf->writeHTML($html, true, false, true, false, '');
@@ -295,22 +275,22 @@ $pdf->writeHTML($html, true, false, true, false, '');
 $pdf->AddPage();
 
 $html = <<<EOF
-    <div style="background-color:#880000;color:white;">
-    Hello World!<br />
-    Hello
-    </div>
-    <pre style="background-color:#336699;color:white;">
-    int main() {
-        printf("HelloWorld");
-        return 0;
-    }
-    </pre>
-    <tt>Monospace font</tt>, normal font, <tt>monospace font</tt>, normal font.
-    <br />
-    <div style="background-color:#880000;color:white;">DIV LEVEL 1<div style="background-color:#008800;color:white;">DIV LEVEL 2</div>DIV LEVEL 1</div>
-    <br />
-    <span style="background-color:#880000;color:white;">SPAN LEVEL 1 <span style="background-color:#008800;color:white;">SPAN LEVEL 2</span> SPAN LEVEL 1</span>
-    EOF;
+<div style="background-color:#880000;color:white;">
+Hello World!<br />
+Hello
+</div>
+<pre style="background-color:#336699;color:white;">
+int main() {
+    printf("HelloWorld");
+    return 0;
+}
+</pre>
+<tt>Monospace font</tt>, normal font, <tt>monospace font</tt>, normal font.
+<br />
+<div style="background-color:#880000;color:white;">DIV LEVEL 1<div style="background-color:#008800;color:white;">DIV LEVEL 2</div>DIV LEVEL 1</div>
+<br />
+<span style="background-color:#880000;color:white;">SPAN LEVEL 1 <span style="background-color:#008800;color:white;">SPAN LEVEL 2</span> SPAN LEVEL 1</span>
+EOF;
 
 // output the HTML content
 $pdf->writeHTML($html, true, false, true, false, '');
@@ -323,14 +303,14 @@ $pdf->writeHTML($html, true, false, true, false, '');
 $pdf->AddPage();
 
 $html = <<<EOF
-    <h1>Test custom bullet image for list items</h1>
-    <ul style="font-size:14pt;list-style-type:img|png|4|4|images/logo_example.png">
-    	<li>test custom bullet image</li>
-    	<li>test custom bullet image</li>
-    	<li>test custom bullet image</li>
-    	<li>test custom bullet image</li>
-    <ul>
-    EOF;
+<h1>Test custom bullet image for list items</h1>
+<ul style="font-size:14pt;list-style-type:img|png|4|4|images/logo_example.png">
+	<li>test custom bullet image</li>
+	<li>test custom bullet image</li>
+	<li>test custom bullet image</li>
+	<li>test custom bullet image</li>
+<ul>
+EOF;
 
 // output the HTML content
 $pdf->writeHTML($html, true, false, true, false, '');
@@ -344,3 +324,7 @@ $pdf->lastPage();
 
 //Close and output PDF document
 $pdf->Output('example_006.pdf', 'I');
+
+//============================================================+
+// END OF FILE
+//============================================================+

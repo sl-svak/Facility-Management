@@ -1,94 +1,86 @@
 <?php
-// Načtení globálního nastavení pro hlavičku a menu
 require_once APP_ROOT . '/app/Models/SettingModel.php';
 $globalAppName = SettingModel::get('app_name', 'CMMS Cosmonde');
 $globalFavicon = SettingModel::get('favicon_path', '');
-$globalAppFont = SettingModel::get('app_font', 'default'); // Nově načtený font z databáze
+$globalAppFont = SettingModel::get('app_font', 'default'); 
+
+// 1. NAČTENÍ UŽIVATELSKÝCH PREFERENCÍ
+$userPrefs = ['theme' => 'auto', 'font_size' => 'normal', 'qr_mode' => 'auto'];
+if (isset($_SESSION['user_id'])) {
+    if (!isset($_SESSION['theme'])) {
+        try {
+            $pdo = Database::getConnection();
+            $stmt = $pdo->prepare("SELECT theme, font_size, qr_mode FROM users WHERE id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+            $prefs = $stmt->fetch();
+            if ($prefs) {
+                $_SESSION['theme'] = $prefs['theme'];
+                $_SESSION['font_size'] = $prefs['font_size'];
+                $_SESSION['qr_mode'] = $prefs['qr_mode'];
+            }
+        } catch (Exception $e) {}
+    }
+    $userPrefs['theme'] = $_SESSION['theme'] ?? 'auto';
+    $userPrefs['font_size'] = $_SESSION['font_size'] ?? 'normal';
+    $userPrefs['qr_mode'] = $_SESSION['qr_mode'] ?? 'auto';
+}
 ?>
 <!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="manifest.json">
     
-    <!-- DYNAMICKÝ NÁZEV A FAVICONA -->
     <title><?= htmlspecialchars($globalAppName) ?></title>
     <?php if (!empty($globalFavicon)): ?>
         <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars($globalFavicon) ?>">
     <?php endif; ?>
     
-    <!-- Google Material Icons -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    
-    <!-- NÁŠ HLAVNÍ CSS SOUBOR -->
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime('assets/css/style.css') ?>">
 
-    <!-- DYNAMICKÁ ZMĚNA PÍSMA (POUZE PRO MOBILY NA VÝŠKU) -->
-    <?php if ($globalAppFont === 'condensed'): ?>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap">
-        <style>
-            @media screen and (max-width: 768px) and (orientation: portrait) {
-                body, input, select, button, textarea, .table { 
-                    font-family: 'Roboto Condensed', sans-serif !important; 
-                    font-size: 14px !important; 
-                }
-            }
-        </style>
-    <?php elseif ($globalAppFont === 'system'): ?>
-        <style>
-            @media screen and (max-width: 768px) and (orientation: portrait) {
-                body, input, select, button, textarea, .table { 
-                    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; 
-                    font-size: 14px !important; 
-                }
-            }
-        </style>
-    <?php endif; ?>
-    
+    <!-- 2. APLIKACE UŽIVATELSKÝCH PREFERENCÍ (CSS) -->
     <style>
-        /* Specifické styly pouze pro rozvržení hlavní stránky (kostry) a menu */
+        /* Zvětšení písma pro mobily */
+        <?php if ($userPrefs['font_size'] === 'large'): ?>
+        @media screen and (max-width: 768px) {
+            body, input, select, button, textarea, .table { font-size: 16px !important; }
+        }
+        <?php endif; ?>
+        
+        /* Vynucený světlý režim (přepisuje tmavý systém telefonu) */
+        <?php if ($userPrefs['theme'] === 'light'): ?>
         :root {
-            --sidebar-bg: #2c3e50;
-            --sidebar-hover: #34495e;
-            --text-light: #ecf0f1;
+            --primary: #2c3e50 !important;
+            --background: #f4f7f6 !important;
+            --card-bg: #ffffff !important;
+            --text-main: #333333 !important;
+            --text-muted: #666666 !important;
+            --border-color: #eeeeee !important;
         }
+        input, select, textarea { background-color: #fff !important; color: #000 !important; border: 1px solid #ccc !important; }
+        .table th { background: rgba(0,0,0,0.02) !important; }
         
-        body { display: flex; height: 100vh; overflow: hidden; }
-        
-        .sidebar { width: 250px; min-width: 250px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--text-light); display: flex; flex-direction: column; transition: 0.3s; z-index: 1000; }
-        
-        .sidebar-header { padding: 15px 20px; font-size: 1.5em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1); }
-        .logout-btn { color: #e74c3c; text-decoration: none; display: flex; align-items: center; padding: 5px; border-radius: 4px; transition: 0.2s; }
-        .logout-btn:hover { color: #c0392b; background: rgba(255,255,255,0.1); }
-        .menu-toggle { display: none; background: none; border: none; color: white; cursor: pointer; padding: 5px; margin-right: 10px; }
-
-        .nav-menu { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
-        .nav-menu li a { display: flex; align-items: center; padding: 15px 20px; color: var(--text-light); text-decoration: none; transition: 0.2s; border-left: 4px solid transparent; }
-        .nav-menu li a:hover, .nav-menu li a.active { background: var(--sidebar-hover); border-left-color: var(--primary); }
-        .nav-menu li a .material-symbols-outlined { margin-right: 15px; }
-        
-        .user-info { padding: 15px 20px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.9em; display: flex; align-items: center; justify-content: center; text-align: center; }
-
-        .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; }
-        .topbar { background: #fff; padding: 15px 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-        .content-wrapper { padding: 20px; flex-grow: 1; }
-
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            .sidebar { width: 100%; height: auto; flex-direction: column; }
-            .sidebar-header { padding: 10px 15px; }
-            .menu-toggle { display: block; }
-            
-            .nav-menu, .user-info { display: none; width: 100%; background: var(--sidebar-bg); }
-            
-            .sidebar.open .nav-menu, .sidebar.open .user-info { display: flex; flex-direction: column; }
-            
-            .nav-menu li a { padding: 12px 20px; border-left: none; }
-            
-            .topbar { padding: 10px 15px; }
-            .topbar h2 { font-size: 1.1em; }
-            .content-wrapper { padding: 10px 10px 90px 10px; }
+        /* Vynucený tmavý režim */
+        <?php elseif ($userPrefs['theme'] === 'dark'): ?>
+        :root {
+            --primary: #34495e !important;
+            --background: #121212 !important;
+            --card-bg: #1e1e1e !important;
+            --text-main: #e0e0e0 !important;
+            --text-muted: #aaaaaa !important;
+            --border-color: #333333 !important;
         }
+        input, select, textarea { background-color: #2a2a2a !important; color: #e0e0e0 !important; border: 1px solid #444 !important; }
+        .table th { background: #252525 !important; }
+        <?php endif; ?>
+        
+        /* Logika zobrazení QR čtečky */
+        <?php if ($userPrefs['qr_mode'] === 'auto'): ?>
+        @media (min-width: 1024px) and (pointer: fine) { .qr-menu-item { display: none !important; } }
+        <?php endif; ?>
     </style>
 </head>
 <body>
@@ -98,51 +90,53 @@ $globalAppFont = SettingModel::get('app_font', 'default'); // Nově načtený fo
                 <button class="menu-toggle" id="menuToggle" title="Zobrazit/Skrýt menu">
                     <span class="material-symbols-outlined">menu</span>
                 </button>
-                <!-- DYNAMICKÝ NÁZEV APLIKACE V MENU -->
                 <span><?= htmlspecialchars($globalAppName) ?></span>
             </div>
             <a href="index.php?page=logout" class="logout-btn" title="Odhlásit se"><span class="material-symbols-outlined">logout</span></a>
         </div>
         
         <ul class="nav-menu">
-            <li><a href="index.php?page=dashboard"><span class="material-symbols-outlined">dashboard</span> <span class="text">Dashboard</span></a></li>
+            <li><a href="index.php?page=dashboard" class="<?= (!isset($_GET['page']) || $_GET['page'] === 'dashboard') ? 'active' : '' ?>"><span class="material-symbols-outlined">dashboard</span> <span class="text">Dashboard</span></a></li>
             
-            <!-- PRÁVA PRO DISPEČERA I ADMINA -->
-            <?php if (Auth::isDispatcher()): ?>
-                <li><a href="index.php?page=assets"><span class="material-symbols-outlined">precision_manufacturing</span> <span class="text">Zařízení a stroje</span></a></li>
-                <li><a href="index.php?page=forms"><span class="material-symbols-outlined">design_services</span> <span class="text">Šablony formulářů</span></a></li>
-                <li><a href="index.php?page=plans"><span class="material-symbols-outlined">calendar_month</span> <span class="text">Plánování údržby</span></a></li>
-                <li><a href="index.php?page=reports"><span class="material-symbols-outlined">picture_as_pdf</span> <span class="text">PDF Reporty</span></a></li>
+            <?php if ($userPrefs['qr_mode'] !== 'hide'): ?>
+                <li class="<?= $userPrefs['qr_mode'] === 'auto' ? 'qr-menu-item' : '' ?>">
+                    <a href="index.php?page=qr_reader" class="<?= (isset($_GET['page']) && $_GET['page'] === 'qr_reader') ? 'active' : '' ?>"><span class="material-symbols-outlined">qr_code_scanner</span> <span class="text">Čtečka QR kódů</span></a>
+                </li>
+            <?php endif; ?>
+            
+            <?php if (Auth::isManager()): ?>
+				<li><a href="index.php?page=departments" class="<?= (isset($_GET['page']) && $_GET['page'] === 'departments') ? 'active' : '' ?>"><span class="material-symbols-outlined">domain</span> <span class="text">Organizační úseky</span></a></li>
+                <li><a href="index.php?page=assets" class="<?= (isset($_GET['page']) && $_GET['page'] === 'assets') ? 'active' : '' ?>"><span class="material-symbols-outlined">precision_manufacturing</span> <span class="text">Zařízení a stroje</span></a></li>
+                <li><a href="index.php?page=forms" class="<?= (isset($_GET['page']) && $_GET['page'] === 'forms') ? 'active' : '' ?>"><span class="material-symbols-outlined">design_services</span> <span class="text">Šablony formulářů</span></a></li>
+                <li><a href="index.php?page=plans" class="<?= (isset($_GET['page']) && $_GET['page'] === 'plans') ? 'active' : '' ?>"><span class="material-symbols-outlined">calendar_month</span> <span class="text">Plánování údržby</span></a></li>
+                <li><a href="index.php?page=reports" class="<?= (isset($_GET['page']) && $_GET['page'] === 'reports') ? 'active' : '' ?>"><span class="material-symbols-outlined">picture_as_pdf</span> <span class="text">PDF Reporty</span></a></li>
             <?php endif; ?>
 
-            <!-- PRÁVA STRIKTNĚ POUZE PRO ADMINA -->
             <?php if (Auth::isAdmin()): ?>
-                <li><a href="index.php?page=users"><span class="material-symbols-outlined">group</span> <span class="text">Správa uživatelů</span></a></li>
-                <!-- NASTAVENÍ -->
-                <li><a href="index.php?page=settings"><span class="material-symbols-outlined">settings</span> <span class="text">Nastavení</span></a></li>
+                <li><a href="index.php?page=users" class="<?= (isset($_GET['page']) && $_GET['page'] === 'users') ? 'active' : '' ?>"><span class="material-symbols-outlined">group</span> <span class="text">Správa uživatelů</span></a></li>
+                <li><a href="index.php?page=security_logs" class="<?= (isset($_GET['page']) && $_GET['page'] === 'security_logs') ? 'active' : '' ?>"><span class="material-symbols-outlined">shield</span> <span class="text">Bezpečnostní deník</span></a></li>
+                <li><a href="index.php?page=settings" class="<?= (isset($_GET['page']) && $_GET['page'] === 'settings') ? 'active' : '' ?>"><span class="material-symbols-outlined">settings</span> <span class="text">Nastavení</span></a></li>
             <?php endif; ?>
 
-            <!-- PŘÍSTUPNÉ VŠEM (VČETNĚ TECHNIKŮ) -->
-            <li><a href="index.php?page=inspections"><span class="material-symbols-outlined">fact_check</span> <span class="text">Záznamy a revize</span></a></li>
-            <li><a href="index.php?page=tickets"><span class="material-symbols-outlined">assignment_late</span> <span class="text">Úkoly a závady</span></a></li>
+            <li><a href="index.php?page=inspections" class="<?= (isset($_GET['page']) && $_GET['page'] === 'inspections') ? 'active' : '' ?>"><span class="material-symbols-outlined">fact_check</span> <span class="text">Záznamy a revize</span></a></li>
+            <li><a href="index.php?page=tickets" class="<?= (isset($_GET['page']) && $_GET['page'] === 'tickets') ? 'active' : '' ?>"><span class="material-symbols-outlined">assignment_late</span> <span class="text">Úkoly a závady</span></a></li>
         </ul>
         
-        <div class="user-info">
+        <div class="user-info" onclick="window.location.href='index.php?page=profile'" title="Upravit profil a heslo">
             <span>
                 <span class="material-symbols-outlined" style="vertical-align: middle; font-size:1.2em;">account_circle</span> 
                 <?= htmlspecialchars($_SESSION['first_name'] ?? 'Uživatel') ?>
                 <br>
                 <?php 
-                    // Rozlišení barvy a názvu podle role aktuálního uživatele
                     $role_name = 'Technik';
-                    $role_color = '#95a5a6'; // Šedá pro technika
+                    $role_color = '#95a5a6';
                     
                     if (Auth::isAdmin()) {
                         $role_name = 'Administrátor';
-                        $role_color = '#e74c3c'; // Červená pro admina
-                    } elseif (Auth::isDispatcher()) {
-                        $role_name = 'Dispečer';
-                        $role_color = '#f39c12'; // Oranžová pro dispečera
+                        $role_color = '#e74c3c';
+                    } elseif (Auth::isManager()) {
+                        $role_name = 'Manager';
+                        $role_color = '#f39c12';
                     }
                 ?>
                 <span style="font-size: 0.8em; color: <?= $role_color ?>; font-weight: bold;">
@@ -154,17 +148,38 @@ $globalAppFont = SettingModel::get('app_font', 'default'); // Nově načtený fo
 
     <main class="main-content">
         <header class="topbar">
-            <h2 style="margin:0; font-size: 1.2em; color: #333;"><?= htmlspecialchars($pageTitle ?? 'Přehled') ?></h2>
+            <h2 style="margin:0; font-size: 1.2em; color: var(--text-main);"><?= htmlspecialchars($pageTitle ?? 'Přehled') ?></h2>
         </header>
         <div class="content-wrapper">
             <?= $content ?>
         </div>
     </main>
 
+    <!-- Ochrana proti dvojitému odeslání a úprava pro PDF reporty -->
     <script>
-        document.getElementById('menuToggle').addEventListener('click', function() {
-            document.getElementById('sidebar').classList.toggle('open');
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const btn = this.querySelector('button[type="submit"]');
+            if (btn) {
+                const originalText = btn.innerHTML;
+                
+                // Mírné zpoždění zajistí bezpečné odeslání dat
+                setTimeout(() => {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="material-symbols-outlined" style="vertical-align: middle;">autorenew</span> Ukládám...';
+                    
+                    // Pokud formulář generuje report (PDF), za 3 vteřiny tlačítko odemkneme
+                    if (this.action.includes('report') || this.action.includes('export')) {
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }, 3000);
+                    }
+                }, 10);
+            }
         });
+    });
     </script>
+    <script src="assets/js/app.js"></script>
 </body>
 </html>

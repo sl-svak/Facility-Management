@@ -9,7 +9,6 @@ $step = (int)($_GET['step'] ?? 1);
 $error = '';
 $success = '';
 
-// 1. KONTROLA STAVU INSTALACE
 if (file_exists($configFile)) {
     require_once $configFile;
     if (defined('APP_ROOT')) {
@@ -17,24 +16,17 @@ if (file_exists($configFile)) {
         try {
             $pdo = Database::getConnection();
             $stmt = $pdo->query("SELECT COUNT(*) FROM users");
-            $userCount = $stmt ? (int)$stmt->fetchColumn() : 0;
-
-            if ($userCount > 0) {
-                // Systém je již plně nainstalován -> rovnou na login
+            if ($stmt && (int)$stmt->fetchColumn() > 0) {
                 header('Location: index.php?page=login');
                 exit;
             } elseif ($step === 1 && $_SERVER['REQUEST_METHOD'] === 'GET') {
-                // DB je již nakonfigurována, ale chybí admin -> automaticky skočit na krok 2
                 header('Location: install.php?step=2');
                 exit;
             }
-        } catch (Exception $e) {
-            // Při chybě spojení umožníme znovu projít krok 1
-        }
+        } catch (Exception $e) {}
     }
 }
 
-// 2. ZPRACOVÁNÍ FORMULÁŘŮ
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($step === 1) {
         $db_host = trim($_POST['db_host'] ?? 'localhost');
@@ -52,9 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
                 ]);
 
-                if (!is_dir($configDir)) {
-                    @mkdir($configDir, 0777, true);
-                }
+                if (!is_dir($configDir)) @mkdir($configDir, 0777, true);
 
                 $configContent = "<?php\n" .
                     "define('DB_HOST', " . var_export($db_host, true) . ");\n" .
@@ -63,32 +53,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "define('DB_PASS', " . var_export($db_pass, true) . ");\n" .
                     "define('APP_ROOT', __DIR__ . '/..');\n";
                 
-                $saved = @file_put_contents($configFile, $configContent);
-                if ($saved === false) {
-                    throw new Exception("Nepodařilo se zapsat do souboru {$configFile}. Nastavte práva CHMOD 777.");
+                if (@file_put_contents($configFile, $configContent) === false) {
+                    throw new Exception("Nepodařilo se zapsat do souboru config.php.");
                 }
 
-                // Vytvoření tabulek
                 $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS departments (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(150) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
                     CREATE TABLE IF NOT EXISTS users (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         username VARCHAR(100) NOT NULL UNIQUE,
                         password VARCHAR(255) NOT NULL,
+                        force_password_change TINYINT(1) NOT NULL DEFAULT 0,
                         first_name VARCHAR(100) NOT NULL,
                         last_name VARCHAR(100) NOT NULL,
                         role VARCHAR(50) DEFAULT 'technician',
                         is_active TINYINT(1) DEFAULT 1,
+                        theme VARCHAR(20) DEFAULT 'auto',
+                        font_size VARCHAR(20) DEFAULT 'normal',
+                        qr_mode VARCHAR(20) DEFAULT 'auto',
                         email VARCHAR(150) NULL,
+                        last_login_at DATETIME DEFAULT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    CREATE TABLE IF NOT EXISTS user_departments (
+                        user_id INT NOT NULL,
+                        department_id INT NOT NULL,
+                        PRIMARY KEY (user_id, department_id),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    CREATE TABLE IF NOT EXISTS login_logs (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        attempt_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ip_address VARCHAR(45) NOT NULL,
+                        username VARCHAR(50) NOT NULL,
+                        status ENUM('success', 'failed') NOT NULL,
+                        user_agent VARCHAR(255)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
                     CREATE TABLE IF NOT EXISTS assets (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         name VARCHAR(255) NOT NULL,
+                        department_id INT NULL,
                         description TEXT NULL,
                         qr_hash VARCHAR(64) NOT NULL UNIQUE,
                         is_active TINYINT(1) DEFAULT 1,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        operational_status VARCHAR(20) DEFAULT 'running',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
                     CREATE TABLE IF NOT EXISTS form_templates (
@@ -117,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         form_template_id INT NOT NULL,
                         technician_id INT NULL,
                         status VARCHAR(20) NOT NULL,
-                        data_json TEXT NOT NULL,
+                        data_json MEDIUMTEXT NOT NULL,
                         duration_seconds INT DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
@@ -132,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         title VARCHAR(255) NOT NULL,
                         status VARCHAR(20) DEFAULT 'open',
                         resolution_text TEXT NULL,
-                        resolution_signature TEXT NULL,
+                        resolution_signature MEDIUMTEXT NULL,
                         resolved_by INT NULL,
                         resolved_at TIMESTAMP NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -146,9 +165,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         setting_value TEXT NOT NULL
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-                    INSERT IGNORE INTO settings (setting_key, setting_value) VALUES 
-                    ('app_name', 'CMMS Cosmonde'), 
-                    ('favicon_path', '');
+                    CREATE TABLE IF NOT EXISTS system_migrations (
+                        version VARCHAR(50) PRIMARY KEY,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('app_name', 'CMMS Cosmonde'), ('favicon_path', '');
+                    INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.5');
                 ");
 
                 header('Location: install.php?step=2');
@@ -176,13 +199,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$username]);
                 
                 if ($stmt->fetchColumn() > 0) {
-                    $error = 'Uživatelské jméno již existuje, zvolte jiné.';
+                    $error = 'Uživatelské jméno již existuje.';
                 } else {
                     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                     $stmt = $pdo->prepare("INSERT INTO users (username, password, first_name, last_name, role, is_active) VALUES (?, ?, ?, ?, 'admin', 1)");
                     $stmt->execute([$username, $hashed_password, $first_name, $last_name]);
 
-                    // Přesměrování na závěrečný krok (prevence znovuzaslání formuláře)
                     header('Location: install.php?step=3');
                     exit;
                 }
@@ -200,51 +222,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Instalace CMMS Systému</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; padding: 40px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; margin: 0; padding: 40px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 500px; border-top: 4px solid #2980b9; }
-        h2 { margin-top: 0; color: #2c3e50; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; margin-top: 15px; }
         input[type="text"], input[type="password"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .btn { background: #2980b9; color: #fff; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 1.1em; margin-top: 25px; }
-        .btn:hover { background: #2471a3; }
-        .error { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb; }
-        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>CMMS Systém – Instalace</h2>
-        <?php if (!empty($error)): ?><div class="error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+        <h2 style="margin-top:0;">CMMS Systém – Instalace</h2>
+        <?php if (!empty($error)): ?><div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
         <?php if ($step === 1): ?>
-            <p style="color: #666; font-size: 0.95em;">Zadejte přihlašovací údaje k vaší MySQL databázi.</p>
             <form method="POST" action="install.php?step=1">
-                <label>Databázový hostitel (Server)</label>
-                <input type="text" name="db_host" value="localhost" required>
-                <label>Název databáze</label>
-                <input type="text" name="db_name" required>
-                <label>Uživatelské jméno k databázi</label>
-                <input type="text" name="db_user" required>
-                <label>Heslo k databázi</label>
-                <input type="password" name="db_pass">
+                <label>Databázový hostitel</label><input type="text" name="db_host" value="localhost" required>
+                <label>Název databáze</label><input type="text" name="db_name" required>
+                <label>Uživatelské jméno</label><input type="text" name="db_user" required>
+                <label>Heslo k databázi</label><input type="password" name="db_pass">
                 <button type="submit" class="btn">Pokračovat a vytvořit tabulky</button>
             </form>
         <?php elseif ($step === 2): ?>
-            <p style="color: #666; font-size: 0.95em;">Databáze je připravena. Vytvořte první administrátorský účet.</p>
             <form method="POST" action="install.php?step=2">
-                <label>Uživatelské jméno (pro přihlášení)</label>
-                <input type="text" name="username" required>
-                <label>Jméno</label>
-                <input type="text" name="first_name" required>
-                <label>Příjmení</label>
-                <input type="text" name="last_name" required>
-                <label>Heslo</label>
-                <input type="password" name="password" required>
+                <label>Uživatelské jméno (login)</label><input type="text" name="username" required>
+                <label>Jméno</label><input type="text" name="first_name" required>
+                <label>Příjmení</label><input type="text" name="last_name" required>
+                <label>Heslo</label><input type="password" name="password" required>
                 <button type="submit" class="btn" style="background: #27ae60;">Dokončit instalaci</button>
             </form>
         <?php elseif ($step === 3): ?>
-            <div class="success">Instalace proběhla úspěšně! Administrátorský účet je aktivní.</div>
-            <a href="index.php?page=login" class="btn" style="text-align: center; text-decoration: none; display: block; box-sizing: border-box; background: #27ae60;">Přejít na přihlášení</a>
+            <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">Instalace úspěšná!</div>
+            <a href="index.php?page=login" class="btn" style="text-align: center; text-decoration: none; display: block; box-sizing: border-box; background: #27ae60;">Přihlásit se</a>
         <?php endif; ?>
     </div>
 </body>

@@ -29,6 +29,9 @@
         </h3>
         
         <form method="POST" action="index.php?page=profile_preferences">
+            <!-- OCHRANA CSRF -->
+            <?= Security::csrfField() ?>
+
             <div style="margin-bottom: 15px;">
                 <label style="display: block; font-weight: bold; margin-bottom: 5px;">Barevný motiv</label>
                 <select name="theme" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: var(--card-bg); color: var(--text-main);">
@@ -68,6 +71,9 @@
             <span class="material-symbols-outlined" style="vertical-align: middle;">lock</span> Změna hesla
         </h3>
         <form method="POST" action="index.php?page=profile_save">
+            <!-- OCHRANA CSRF -->
+            <?= Security::csrfField() ?>
+
             <div style="margin-bottom: 15px;">
                 <label style="display: block; font-weight: bold; margin-bottom: 5px;">Současné heslo</label>
                 <input type="password" name="current_password" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background: var(--card-bg); color: var(--text-main);">

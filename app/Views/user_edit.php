@@ -12,6 +12,10 @@
     </div>
 
     <form method="POST" action="index.php?page=user_update">
+        
+        <!-- OCHRANA CSRF -->
+        <?= Security::csrfField() ?>
+
         <input type="hidden" name="id" value="<?= $user['id'] ?>">
 
         <div style="margin-bottom: 15px;">

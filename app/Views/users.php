@@ -12,6 +12,10 @@
     <?php endif; ?>
 
     <form method="POST" action="index.php?page=user_create" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+        
+        <!-- OCHRANA CSRF -->
+        <?= Security::csrfField() ?>
+
         <div style="flex: 1; min-width: 180px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Uživatelské jméno *</label>
             <input type="text" name="username" required placeholder="např. karel" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; background: var(--card-bg); color: var(--text-main);">
@@ -32,16 +36,23 @@
             <input type="password" name="password" required placeholder="Zvolte heslo" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; background: var(--card-bg); color: var(--text-main);">
         </div>
 
-        <div style="flex: 1; min-width: 180px;">
+        <div style="flex: 1; min-width: 200px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Organizační úseky</label>
-            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; max-height: 125px; overflow-y: auto;">
-                <?php foreach ($departments ?? [] as $dep): ?>
-                    <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer; font-weight: normal; color: var(--text-main);">
-                        <input type="checkbox" name="departments[]" value="<?= $dep['id'] ?>" style="margin-right: 8px;"> <?= htmlspecialchars($dep['name']) ?>
-                    </label>
-                <?php endforeach; ?>
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.85em; color: var(--text-muted);">
-                    Nevyberete-li nic = Vidí celou firmu
+            <div class="custom-dropdown" id="deptDropdown">
+                <button type="button" class="custom-dropdown-button" onclick="toggleDropdown()">
+                    <span id="dropdownTitle">-- Zvolte úseky --</span>
+                    <span class="material-symbols-outlined" style="font-size: 1.2em;">arrow_drop_down</span>
+                </button>
+                <div class="custom-dropdown-content">
+                    <div style="padding: 8px 12px; font-size: 0.85em; color: var(--text-muted); border-bottom: 1px solid var(--border-color); font-style: italic;">
+                        Nevyberete-li nic = Vidí celou firmu
+                    </div>
+                    <?php foreach ($departments ?? [] as $dep): ?>
+                        <label>
+                            <input type="checkbox" name="departments[]" value="<?= $dep['id'] ?>" style="margin-right: 8px;" onchange="updateDropdownText()"> 
+                            <?= htmlspecialchars($dep['name']) ?>
+                        </label>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
@@ -56,7 +67,7 @@
         </div>
         
         <div>
-            <button type="submit" class="btn btn-primary" style="padding: 10px 25px;"><span class="material-symbols-outlined" style="vertical-align: middle;">save</span> Vytvořit</button>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 25px; margin-bottom: 1px;"><span class="material-symbols-outlined" style="vertical-align: middle;">save</span> Vytvořit</button>
         </div>
     </form>
 </div>

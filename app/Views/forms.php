@@ -1,10 +1,9 @@
 <?php 
 if (!defined('APP_ROOT')) exit; 
 
-$isEdit = isset($editTemplate) && $editTemplate;
+$isEdit = isset($editTemplate) &&$editTemplate;
 $formId = $isEdit ? $editTemplate['id'] : '';
-$formTitle = $isEdit ? $editTemplate['title'] : '';
-$formMinutes = $isEdit ? $editTemplate['estimated_minutes'] : 15;
+$formTitle =$isEdit ? $editTemplate['title'] : '';$formMinutes = $isEdit ? $editTemplate['estimated_minutes'] : 15;
 $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 ?>
 
@@ -16,38 +15,41 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
         </h3>
         
         <form method="POST" action="index.php?page=form_create" id="form-builder" onsubmit="return validateForm();">
+            <!-- OCHRANA CSRF -->
+            <?= Security::csrfField() ?>
+            
             <input type="hidden" name="id" value="<?= $formId ?>">
 
             <div style="margin-bottom: 15px;">
                 <label style="font-weight: bold; color: var(--text-muted);">Název šablony (např. Kontrola ČOV) *</label>
-                <input type="text" name="title" value="<?= htmlspecialchars($formTitle) ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; margin-top: 5px;">
+                <input type="text" name="title" value="<?= htmlspecialchars($formTitle) ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; margin-top: 5px; background: var(--card-bg); color: var(--text-main);">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label style="font-weight: bold; color: var(--text-muted);">Odhadovaný čas (v minutách)</label>
-                <input type="number" name="estimated_minutes" value="<?= $formMinutes ?>" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; margin-top: 5px;">
+                <input type="number" name="estimated_minutes" value="<?= $formMinutes ?>" min="1" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; margin-top: 5px; background: var(--card-bg); color: var(--text-main);">
             </div>
 
             <input type="hidden" name="schema_json" id="schema_json" value="<?= htmlspecialchars($formSchema) ?>">
 
             <div style="margin-top: 20px; padding: 15px; background: var(--background); border-radius: 8px;">
-                <strong>Struktura formuláře:</strong>
-                <div id="preview-area" style="margin-top: 10px; min-height: 50px; background: #fff; padding: 15px; border: 1px dashed #ccc;"></div>
+                <strong style="color: var(--text-main);">Struktura formuláře:</strong>
+                <div id="preview-area" style="margin-top: 10px; min-height: 50px; background: var(--card-bg); padding: 15px; border: 1px dashed var(--border-color);"></div>
             </div>
 
             <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                <button type="button" class="btn" style="background: #2c3e50; color: #fff; font-weight: bold;" onclick="addField('asset_status')">
+                <button type="button" class="btn btn-primary" style="font-weight: bold;" onclick="addField('asset_status')">
                     <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.1em;">power_settings_new</span> Provozní stav
                 </button>
-                <button type="button" class="btn" style="background: #e67e22; color: #fff; font-weight: bold;" onclick="addField('photo')">
+                <button type="button" class="btn btn-warning" style="font-weight: bold;" onclick="addField('photo')">
                     <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.1em;">photo_camera</span> Fotografie
                 </button>
 
                 <button type="button" class="btn btn-success" onclick="addField('radio_ok_ko')">+ Tlačítka OK/KO</button>
-                <button type="button" class="btn" style="background: #3498db; color: #fff;" onclick="addField('radio_yes_no')">+ Tlačítka Ano/Ne</button>
+                <button type="button" class="btn btn-info" onclick="addField('radio_yes_no')">+ Tlačítka Ano/Ne</button>
                 <button type="button" class="btn btn-warning" onclick="addField('numeric_limit')">+ Číselné měření</button>
                 <button type="button" class="btn btn-danger" onclick="addField('meter_reading')">+ Odečet měřidla</button>
-                <button type="button" class="btn btn-info" onclick="addField('textarea')">+ Textová poznámka</button>
+                <button type="button" class="btn btn-primary" onclick="addField('textarea')">+ Textová poznámka</button>
                 <button type="button" class="btn" style="background: #8e44ad; color: #fff;" onclick="addField('signature')">+ Podpisové pole</button>
             </div>
 
@@ -59,7 +61,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
             </button>
             
             <?php if ($isEdit): ?>
-                <a href="index.php?page=forms" class="btn" style="background: #95a5a6; width: 100%; text-align: center; display: block; margin-top: 10px; box-sizing: border-box;">Zrušit úpravy</a>
+                <a href="index.php?page=forms" class="btn" style="background: var(--text-muted); width: 100%; text-align: center; display: block; margin-top: 10px; box-sizing: border-box;">Zrušit úpravy</a>
             <?php endif; ?>
         </form>
     </div>
@@ -70,8 +72,8 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
             <p style="color: var(--text-muted); font-style: italic;">Zatím nemáte vytvořené žádné šablony formulářů.</p>
         <?php else: ?>
             <ul style="list-style: none; padding: 0;">
-                <?php foreach ($templates as $tpl): ?>
-                    <li style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; <?= ($isEdit && $tpl['id'] == $editTemplate['id']) ? 'background: #eaf2f8;' : '' ?>">
+                <?php foreach ($templates as$tpl): ?>
+                    <li style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; <?= ($isEdit && $tpl['id'] ==$editTemplate['id']) ? 'background: rgba(41, 128, 185, 0.1);' : '' ?>">
                         <div>
                             <strong style="color: var(--primary); font-size: 1.1em;"><?= htmlspecialchars($tpl['title']) ?></strong><br>
                             <span style="font-size: 0.85em; color: var(--text-muted); display: inline-flex; align-items: center; margin-top: 4px;">
@@ -102,16 +104,11 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
     let schema = <?= $formSchema ?>;
 
     document.addEventListener("DOMContentLoaded", function() {
-        // ZPĚTNÁ KOMPATIBILITA: Přiřazení ID starým polím bez ID
-        schema.forEach(field => {
-            if (!field.id) field.id = field.label; 
-        });
+        schema.forEach(field => { if (!field.id) field.id = field.label; });
         renderPreview();
     });
 
-    function generateId() {
-        return 'f_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-    }
+    function generateId() { return 'f_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5); }
 
     function addField(type) {
         let promptMsg = "Zadejte název pole:";
@@ -133,15 +130,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
             unit = prompt("Zadejte jednotku měřidla:", "m3");
         }
 
-        schema.push({ 
-            id: generateId(), // GENERUJE UNIKÁTNÍ ID
-            type: type, 
-            label: label, 
-            required: isRequired, 
-            min: isNaN(min) ? null : min, 
-            max: isNaN(max) ? null : max, 
-            unit: unit 
-        });
+        schema.push({ id: generateId(), type: type, label: label, required: isRequired, min: isNaN(min) ? null : min, max: isNaN(max) ? null : max, unit: unit });
         renderPreview();
     }
 
@@ -149,7 +138,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
         let field = schema[index];
         let label = prompt("Upravte název pole:", field.label);
         if (label === null) return; 
-        field.label = label; // Upravuje pouze název, ID zůstává nedotčeno!
+        field.label = label; 
 
         if (field.type !== 'asset_status') { 
             field.required = confirm("Má být toto pole POVINNÉ k vyplnění?\n\nAktuální stav: " + (field.required ? "Ano" : "Ne"));
@@ -183,7 +172,7 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
         const hiddenInput = document.getElementById('schema_json');
         
         if (schema.length === 0) {
-            previewArea.innerHTML = '<em style="color: #999;">Zatím nejsou přidána žádná pole.</em>';
+            previewArea.innerHTML = '<em style="color: var(--text-muted);">Zatím nejsou přidána žádná pole.</em>';
             hiddenInput.value = '[]';
             return;
         }
@@ -201,22 +190,22 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 
             let extraInfo = '';
             if (field.type === 'numeric_limit') {
-                extraInfo = ` <span style="color:#d35400; font-size:0.85em;">[Min: ${field.min !== null ? field.min : 'neomezeno'}, Max: ${field.max !== null ? field.max : 'neomezeno'} ${field.unit || ''}]</span>`;
+                extraInfo = ` <span style="color: var(--warning); font-size:0.85em;">[Min: ${field.min !== null ? field.min : 'neomezeno'}, Max: ${field.max !== null ? field.max : 'neomezeno'} ${field.unit || ''}]</span>`;
             } else if (field.type === 'meter_reading') {
-                extraInfo = ` <span style="color:#2980b9; font-size:0.85em;">[Odečet: ${field.unit || ''}]</span>`;
+                extraInfo = ` <span style="color: var(--info); font-size:0.85em;">[Odečet: ${field.unit || ''}]</span>`;
             }
 
-            let requiredStar = field.required ? '<span style="color: #e74c3c; font-weight: bold; margin-left: 4px;">*</span>' : '';
+            let requiredStar = field.required ? '<span style="color: var(--danger); font-weight: bold; margin-left: 4px;">*</span>' : '';
 
             html += `
-                <div style="padding: 10px; border: 1px solid var(--border-color); margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background: #fafafa;">
-                    <div>
-                        <span class="material-symbols-outlined" style="vertical-align: middle; color: #888; font-size: 1.2em;">${icon}</span>
+                <div style="padding: 10px; border: 1px solid var(--border-color); margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background: var(--card-bg);">
+                    <div style="color: var(--text-main);">
+                        <span class="material-symbols-outlined" style="vertical-align: middle; color: var(--text-muted); font-size: 1.2em;">${icon}</span>
                         <strong>${field.label}</strong>${requiredStar}${extraInfo}
                     </div>
                     <div style="display: flex; gap: 5px;">
-                        <button type="button" onclick="moveField(${index}, 'up')" style="background: none; border: none; color: #888; cursor: pointer;"><span class="material-symbols-outlined">arrow_upward</span></button>
-                        <button type="button" onclick="moveField(${index}, 'down')" style="background: none; border: none; color: #888; cursor: pointer;"><span class="material-symbols-outlined">arrow_downward</span></button>
+                        <button type="button" onclick="moveField(${index}, 'up')" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><span class="material-symbols-outlined">arrow_upward</span></button>
+                        <button type="button" onclick="moveField(${index}, 'down')" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><span class="material-symbols-outlined">arrow_downward</span></button>
                         <button type="button" onclick="editField(${index})" style="background: none; border: none; color: var(--info); cursor: pointer; margin-left: 5px;"><span class="material-symbols-outlined">edit</span></button>
                         <button type="button" onclick="removeField(${index})" style="background: none; border: none; color: var(--danger); cursor: pointer; margin-left: 5px;"><span class="material-symbols-outlined">close</span></button>
                     </div>

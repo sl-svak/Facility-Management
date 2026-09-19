@@ -1,9 +1,0 @@
-# # Provozní nahrané soubory
-assets/uploads/
-
-# Lokální konfigurace
-.env
-
-# Systémové soubory
-.DS_Store
-Thumbs.db

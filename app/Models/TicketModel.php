@@ -47,13 +47,6 @@ class TicketModel {
     // Vyřeší tiket
     public static function resolve($ticket_id, $resolution_text, $signature_base64, $user_id) {
         $pdo = Database::getConnection();
-
-        // Bezpečnostní pojistka pro hostitelskou databázi
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_text TEXT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_signature TEXT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolved_by INT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP NULL"); } catch (Exception $e) {}
-
         $stmt = $pdo->prepare("UPDATE tickets SET status = 'closed', resolution_text = ?, resolution_signature = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?");
         return $stmt->execute([$resolution_text, $signature_base64, $user_id, $ticket_id]);
     }

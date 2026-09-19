@@ -1,5 +1,7 @@
 # CMMS - Systém pro řízení údržby (Computerized Maintenance Management System)
 
+**Version 1.0.7**
+
 Funkční web: http://cmms.wz.cz/
 
 Lehká, rychlá a mobilní webová aplikace pro digitální řízení údržby, revize strojů a správu závad. Navrženo s důrazem na uživatelskou přívětivost pro techniky v terénu a bezproblémový běh na běžných sdílených webhostinzích s přísnými limity.

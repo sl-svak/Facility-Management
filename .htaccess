@@ -1,4 +1,4 @@
-# 1. Zákaz procházení obsahu složek na celém webu
+# 1. Zákaz procházení obsahu složek na celém webu.
 Options -Indexes
 
 # 2. Vynucení HTTPS (ošetřeno pro proxy servery hostingu)

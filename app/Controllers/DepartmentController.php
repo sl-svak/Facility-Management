@@ -20,10 +20,13 @@ class DepartmentController {
         exit;
     }
 
+    // Smazání úseku (PŘEPSÁNO NA POST)
     public static function delete() {
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id > 0) {
-            DepartmentModel::delete($id);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0) {
+                DepartmentModel::delete($id);
+            }
         }
         header('Location: index.php?page=departments');
         exit;

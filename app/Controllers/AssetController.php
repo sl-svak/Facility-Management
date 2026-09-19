@@ -35,10 +35,10 @@ class AssetController {
         exit;
     }
 
-    // 3. Odstranění zařízení
+    // 3. Odstranění zařízení (PŘEPSÁNO NA POST)
     public static function delete() {
-        if (isset($_GET['id'])) {
-            $id = (int)$_GET['id'];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
+            $id = (int)$_POST['id'];
             AssetModel::delete($id);
         }
         header('Location: index.php?page=assets');

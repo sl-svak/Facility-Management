@@ -3,13 +3,6 @@ class RecordController {
     public static function index() {
         $pdo = Database::getConnection();
         
-        // Automatická oprava databáze (vytvoří sloupce pro podpis a fotky opravy, pokud chybí)
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_text TEXT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_signature TEXT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_photos TEXT NULL AFTER resolution_signature"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolved_by INT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP NULL"); } catch (Exception $e) {}
-        
         $filter_asset = isset($_GET['asset_id']) ? (int)$_GET['asset_id'] : 0;
         $filter_status = $_GET['status'] ?? '';
         
@@ -25,7 +18,6 @@ class RecordController {
             $params[] = $filter_status;
         }
         
-        // PŘIDÁNO tk.resolution_photos DO SQL DOTAZU
         $sql = "
             SELECT i.*, a.name as asset_name, t.title as template_name, 
                    u.first_name, u.last_name,

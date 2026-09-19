@@ -41,10 +41,10 @@ class FormController {
         exit;
     }
 
-    // Smazání šablony
+    // Smazání šablony (PŘEPSÁNO NA POST)
     public static function delete() {
-        if (isset($_GET['id'])) {
-            $id = (int)$_GET['id'];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
+            $id = (int)$_POST['id'];
             FormModel::delete($id);
         }
         header('Location: index.php?page=forms');

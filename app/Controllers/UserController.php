@@ -143,10 +143,13 @@ class UserController {
         exit;
     }
 
+    // 6. Odstranění uživatele (PŘEPSÁNO NA POST)
     public static function delete() {
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id > 0 && $id != ($_SESSION['user_id'] ?? 0)) {
-            UserModel::delete($id);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0 && $id != ($_SESSION['user_id'] ?? 0)) {
+                UserModel::delete($id);
+            }
         }
         header('Location: index.php?page=users');
         exit;

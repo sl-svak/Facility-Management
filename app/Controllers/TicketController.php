@@ -26,13 +26,6 @@ class TicketController {
         $id = (int)($_GET['id'] ?? 0);
         $pdo = Database::getConnection();
         
-        // ZAJIŠTĚNÍ EXISTENCE SLOUPCE PRO FOTKY OPRAVY (Automatická úprava databáze)
-        try {
-            $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_photos TEXT NULL AFTER resolution_signature");
-        } catch (PDOException $e) {
-            // Pokud už sloupec existuje, databáze hodí chybu, kterou můžeme v klidu ignorovat
-        }
-        
         $stmt = $pdo->prepare("
             SELECT t.*, a.name as asset_name, i.data_json, i.created_at as inspection_date,
                    u.first_name, u.last_name,
@@ -70,27 +63,23 @@ class TicketController {
                 die("Chyba: Způsob opravy a podpis jsou povinné!");
             }
 
-            // --- ZPRACOVÁNÍ FOTOGRAFIÍ OPRAVY (S KOMPRESÍ) ---
+            // --- SERVEROVÁ VALIDACE PODPISU (OCHRANA PŘED XSS) ---
+            // Ověříme, že podpis má správnou strukturu Base64 obrázku a neobsahuje skripty
+            if (!preg_match('/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/]+=*$/', $signature)) {
+                http_response_code(400);
+                die("Bezpečnostní chyba: Podpis neobsahuje platná obrazová data.");
+            }
+            // ----------------------------------------------------
+
+            // --- BEZPEČNÉ ZPRACOVÁNÍ FOTOGRAFIÍ OPRAVY ---
             $uploadedPaths = [];
             $uploadDir = 'assets/uploads/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
-            }
 
             if (isset($_POST['resolution_photos_base64']) && is_array($_POST['resolution_photos_base64'])) {
                 foreach ($_POST['resolution_photos_base64'] as $i => $base64String) {
-                    if (preg_match('/^data:image\/(\w+);base64,/', $base64String, $type)) {
-                        $base64Data = substr($base64String, strpos($base64String, ',') + 1);
-                        $decodedData = base64_decode($base64Data);
-
-                        if ($decodedData !== false) {
-                            $newFilename = uniqid('oprava_') . '_' . $i . '_' . rand(1000, 9999) . '.jpg'; 
-                            $dest = $uploadDir . $newFilename;
-                            
-                            if (file_put_contents($dest, $decodedData)) {
-                                $uploadedPaths[] = $dest;
-                            }
-                        }
+                    $savedPath = ImageProcessor::processBase64($base64String, $uploadDir, 5);
+                    if ($savedPath) {
+                        $uploadedPaths[] = $savedPath;
                     }
                 }
             }

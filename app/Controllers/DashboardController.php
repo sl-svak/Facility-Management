@@ -3,8 +3,6 @@ class DashboardController {
     public static function index() {
         $pdo = Database::getConnection();
 
-        try { $pdo->exec("ALTER TABLE assets ADD COLUMN operational_status VARCHAR(20) DEFAULT 'running'"); } catch (Exception $e) {}
-
         require_once APP_ROOT . '/app/Models/UserModel.php';
         $currentUser = UserModel::getById($_SESSION['user_id']);
         $userDepts = $currentUser['departments'] ?? [];
@@ -53,7 +51,6 @@ class DashboardController {
         $logical_now = time() - $offset_seconds;
         $today_logical_midnight = strtotime(date('Y-m-d', $logical_now));
 
-        // PŘIDÁNO: Načítáme i "a.id as asset_id", abychom věděli, ke kterému stroji tiket založit
         $stmt = $pdo->prepare("
             SELECT 
                 r.id, 
@@ -91,7 +88,7 @@ class DashboardController {
                 $item['status'] = 'red';
                 $item['next_due_formatted'] = 'Ihned (Nekontrolováno)';
                 $item['sort_score'] = 1;
-                $item['days_remaining'] = -1; // Vynucení záporné hodnoty pro nově přidané stroje bez historie
+                $item['days_remaining'] = -1; 
             } else {
                 $last_real_time = strtotime($rule['last_inspection']);
                 $last_logical_time = $last_real_time - $offset_seconds;
@@ -114,25 +111,18 @@ class DashboardController {
                 $item['days_remaining'] = (int)round($diff_seconds / 86400);
             }
 
-            // --- VYHODNOCENÍ BAREV A ZAKLÁDÁNÍ TIKETŮ ---
             if ($item['days_remaining'] < 0) {
                 $item['status'] = 'red'; 
                 $item['sort_score'] = 1;
 
-                // AUTOMATICKÉ VYTVOŘENÍ TIKETU PRO OPOMENUTOU KONTROLU
-                // Přidáme do názvu konkrétní datum termínu, abychom ho unikátně odlišili
                 $ticketTitle = "Opomenutá kontrola: " . $rule['template_name'] . " (termín: " . $item['next_due_formatted'] . ")";
                 
-                // Zkontrolujeme, zda už tento tiket pro tento konkrétní termín neexistuje (i kdyby už byl UZAVŘENÝ)
                 $stmtCheck = $pdo->prepare("SELECT id FROM tickets WHERE asset_id = ? AND title = ?");
                 $stmtCheck->execute([$rule['asset_id'], $ticketTitle]);
                 
                 if (!$stmtCheck->fetchColumn()) {
-                    // Tiket neexistuje -> Založíme ho
                     $stmtInsert = $pdo->prepare("INSERT INTO tickets (asset_id, title, status) VALUES (?, ?, 'open')");
                     $stmtInsert->execute([$rule['asset_id'], $ticketTitle]);
-                    
-                    // Rovnou zvedneme počítadlo otevřených tiketů nahoře na stránce
                     $stats['open_tickets']++;
                 }
 

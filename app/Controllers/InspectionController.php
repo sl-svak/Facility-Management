@@ -19,20 +19,16 @@ class InspectionController {
             return;
         }
 
-        // --- NOVÉ: LOGIKA PRO MĚKKÉ VAROVÁNÍ (SOFT WARNING) ---
         require_once APP_ROOT . '/app/Models/UserModel.php';
         $currentUser = UserModel::getById($_SESSION['user_id'] ?? 0);
         $userDepts = $currentUser['departments'] ?? [];
         
         $departmentWarning = false;
-        // Pokud má uživatel omezené úseky (není celofiremní) a stroj do nějakého úseku patří
         if (!empty($userDepts) && $asset['department_id'] !== null) {
-            // Zkontrolujeme, zda se úsek stroje nachází v seznamu povolených úseků uživatele
             if (!in_array($asset['department_id'], $userDepts)) {
-                $departmentWarning = true; // Stroj je z cizího úseku!
+                $departmentWarning = true; 
             }
         }
-        // --------------------------------------------------------
 
         $workweek_days = SettingModel::get('workweek_days', 5);
         $shift_start_hour = (int)SettingModel::get('shift_start_hour', 0);
@@ -100,7 +96,7 @@ class InspectionController {
             'completedTodayForms' => $completedTodayForms,
             'futureForms' => $futureForms,
             'openTickets' => $openTickets,
-            'departmentWarning' => $departmentWarning // Předání varování do šablony
+            'departmentWarning' => $departmentWarning 
         ]);
     }
 
@@ -127,30 +123,75 @@ class InspectionController {
             $duration_seconds = (int)($_POST['duration_seconds'] ?? 0);
             $technician_id    = $_SESSION['user_id'] ?? null;
             
+            $pdo = Database::getConnection();
+
+            // -------------------------------------------------------------------------
+            // 1. BEZPEČNOSTNÍ KONTROLA: OPRÁVNĚNÍ K ÚSEKU (IDOR ochrana)
+            // -------------------------------------------------------------------------
+            $stmtAsset = $pdo->prepare("SELECT department_id FROM assets WHERE id = ? AND is_active = 1");
+            $stmtAsset->execute([$asset_id]);
+            $asset = $stmtAsset->fetch();
+
+            if (!$asset) {
+                http_response_code(404);
+                die("Bezpečnostní chyba: Zařízení neexistuje nebo bylo deaktivováno.");
+            }
+
+            require_once APP_ROOT . '/app/Models/UserModel.php';
+            $currentUser = UserModel::getById($technician_id);
+            $userDepts = $currentUser['departments'] ?? [];
+
+            // Pokud má uživatel omezené úseky a zařízení spadá pod konkrétní úsek
+            if (!empty($userDepts) && $asset['department_id'] !== null) {
+                if (!in_array($asset['department_id'], $userDepts)) {
+                    http_response_code(403);
+                    die("Bezpečnostní chyba: Nemáte oprávnění provádět kontroly na tomto úseku.");
+                }
+            }
+
+            // -------------------------------------------------------------------------
+            // 2. BEZPEČNOSTNÍ KONTROLA: PLATNOST FORMULÁŘE PRO TENTO STROJ
+            // -------------------------------------------------------------------------
+            // Ověřujeme, že pravidlo (asset_form_rules) skutečně existuje
+            $stmtRule = $pdo->prepare("
+                SELECT ft.id, ft.schema_json 
+                FROM form_templates ft
+                JOIN asset_form_rules afr ON afr.form_template_id = ft.id
+                WHERE afr.asset_id = ? AND ft.id = ? AND ft.is_active = 1
+            ");
+            $stmtRule->execute([$asset_id, $form_template_id]);
+            $template = $stmtRule->fetch();
+
+            if (!$template) {
+                http_response_code(403);
+                die("Bezpečnostní chyba: Zvolený formulář není k tomuto zařízení přiřazen.");
+            }
+
+            // -------------------------------------------------------------------------
+            // 3. ZPRACOVÁNÍ DAT FORMULÁŘE A OBRÁZKŮ
+            // -------------------------------------------------------------------------
             $formData = $_POST['data'] ?? [];
-
             $uploadDir = 'assets/uploads/';
-            if (!is_dir($uploadDir)) { mkdir($uploadDir, 0755, true); }
 
+            // Zpracování souborů mimo transakci (aby se neblokovala databáze dlouho)
             if (isset($_POST['photos_base64']) && is_array($_POST['photos_base64'])) {
                 foreach ($_POST['photos_base64'] as $key => $base64Array) {
                     $uploadedPaths = []; 
                     foreach ($base64Array as $i => $base64String) {
-                        if (preg_match('/^data:image\/(\w+);base64,/', $base64String, $type)) {
-                            $base64Data = substr($base64String, strpos($base64String, ',') + 1);
-                            $decodedData = base64_decode($base64Data);
-                            if ($decodedData !== false) {
-                                $newFilename = uniqid('foto_') . '_' . $i . '_' . rand(1000, 9999) . '.jpg'; 
-                                $dest = $uploadDir . $newFilename;
-                                if (file_put_contents($dest, $decodedData)) { $uploadedPaths[] = $dest; }
-                            }
+                        $savedPath = ImageProcessor::processBase64($base64String, $uploadDir, 5);
+                        if ($savedPath) {
+                            $uploadedPaths[] = $savedPath;
                         }
                     }
-                    if (!empty($uploadedPaths)) { $formData[$key] = $uploadedPaths; }
+                    if (!empty($uploadedPaths)) { 
+                        $formData[$key] = $uploadedPaths; 
+                    } else {
+                        $formData[$key] = '[Chyba zpracování obrázků - překročen limit velikosti nebo neplatný formát]';
+                    }
                 }
             }
 
-            $template = FormModel::getById($form_template_id);
+            // Načtení JSON schématu z již bezpečně ověřené šablony
             $schema = json_decode($template['schema_json'] ?? '[]', true);
             $labelMap = [];
             foreach ($schema as $f) {
@@ -180,25 +221,40 @@ class InspectionController {
                 }
             }
 
-            $pdo = Database::getConnection();
-            if ($setToStopped) {
-                $overallStatus = 'Odstaveno';
-                $pdo->prepare("UPDATE assets SET operational_status = 'stopped' WHERE id = ?")->execute([$asset_id]);
-            } else {
-                if ($setToRunning) { $pdo->prepare("UPDATE assets SET operational_status = 'running' WHERE id = ?")->execute([$asset_id]); }
-                $overallStatus = $hasDefect ? 'KO' : 'OK';
-            }
-
             $dataJson = json_encode($formData, JSON_UNESCAPED_UNICODE);
 
-            $stmt = $pdo->prepare("INSERT INTO inspections (asset_id, form_template_id, technician_id, status, data_json, duration_seconds) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$asset_id, $form_template_id, $technician_id, $overallStatus, $dataJson, $duration_seconds]);
-            $inspectionId = $pdo->lastInsertId();
+            // -------------------------------------------------------------------------
+            // 4. ATOMICKÁ DATABÁZOVÁ TRANSAKCE
+            // -------------------------------------------------------------------------
+            try {
+                $pdo->beginTransaction();
 
-            if ($hasDefect && !$setToStopped) {
-                $stmtTicket = $pdo->prepare("INSERT INTO tickets (inspection_id, asset_id, title, status) VALUES (?, ?, ?, 'open')");
-                $ticketTitle = "Automatická závada z kontroly #" . $inspectionId . " (" . ($defectNote ?: 'Zjištěn stav KO') . ")";
-                $stmtTicket->execute([$inspectionId, $asset_id, $ticketTitle]);
+                if ($setToStopped) {
+                    $overallStatus = 'Odstaveno';
+                    $pdo->prepare("UPDATE assets SET operational_status = 'stopped' WHERE id = ?")->execute([$asset_id]);
+                } else {
+                    if ($setToRunning) { 
+                        $pdo->prepare("UPDATE assets SET operational_status = 'running' WHERE id = ?")->execute([$asset_id]); 
+                    }
+                    $overallStatus = $hasDefect ? 'KO' : 'OK';
+                }
+
+                $stmt = $pdo->prepare("INSERT INTO inspections (asset_id, form_template_id, technician_id, status, data_json, duration_seconds) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$asset_id, $form_template_id, $technician_id, $overallStatus, $dataJson, $duration_seconds]);
+                $inspectionId = $pdo->lastInsertId();
+
+                if ($hasDefect && !$setToStopped) {
+                    $stmtTicket = $pdo->prepare("INSERT INTO tickets (inspection_id, asset_id, title, status) VALUES (?, ?, ?, 'open')");
+                    $ticketTitle = "Automatická závada z kontroly #" . $inspectionId . " (" . ($defectNote ?: 'Zjištěn stav KO') . ")";
+                    $stmtTicket->execute([$inspectionId, $asset_id, $ticketTitle]);
+                }
+
+                $pdo->commit();
+
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                error_log("Transakce uložení inspekce selhala: " . $e->getMessage());
+                die("Chyba při ukládání záznamu do databáze. Zkuste to prosím znovu.");
             }
 
             header('Location: index.php?page=qr_reader&saved=1');

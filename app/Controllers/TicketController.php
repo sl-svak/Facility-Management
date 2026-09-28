@@ -1,4 +1,5 @@
 <?php
+// app/Controllers/TicketController.php
 
 class TicketController {
     
@@ -78,15 +79,16 @@ class TicketController {
                 die("Chyba: Způsob opravy a podpis jsou povinné!");
             }
 
-            $uploadDir = 'assets/uploads/';
+            $uploadDir = APP_ROOT . '/assets/uploads/';
             
-            // --- BEZPEČNÉ ZPRACOVÁNÍ PODPISU (Stejná pipeline jako fotky) ---
+            // --- BEZPEČNÉ ZPRACOVÁNÍ PODPISU ---
             $signaturePath = null;
             if (strpos($signature, 'data:image/') === 0) {
-                $signaturePath = ImageProcessor::processBase64($signature, $uploadDir, 2); // 2 MB limit
+                // Volání nové bezpečné metody
+                $signaturePath = ImageProcessor::saveSecureBase64Image($signature, $uploadDir);
                 if (!$signaturePath) {
                     http_response_code(400);
-                    die("Bezpečnostní chyba: Neplatný formát, velikost nebo poškozená data podpisu.");
+                    die("Bezpečnostní chyba: Neplatný formát nebo poškozená data podpisu.");
                 }
             } else {
                 http_response_code(400);
@@ -101,14 +103,18 @@ class TicketController {
                 @ini_set('max_execution_time', '60');
 
                 $photosToProcess = $_POST['resolution_photos_base64'];
+                // Zachování vašeho limitu na 5 fotek z důvodu výkonu/DB
                 if (count($photosToProcess) > 5) {
                     $photosToProcess = array_slice($photosToProcess, 0, 5);
                 }
 
                 foreach ($photosToProcess as $i => $base64String) {
-                    $savedPath = ImageProcessor::processBase64($base64String, $uploadDir, 5);
+                    // Volání nové bezpečné metody
+                    $savedPath = ImageProcessor::saveSecureBase64Image($base64String, $uploadDir);
                     if ($savedPath) {
                         $uploadedPaths[] = $savedPath;
+                    } else {
+                         error_log("Chyba při ukládání fotografie pro tiket ID: " . $ticket_id);
                     }
                 }
             }

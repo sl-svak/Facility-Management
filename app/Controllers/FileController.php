@@ -1,45 +1,35 @@
 <?php
+// app/Controllers/FileController.php
 
 class FileController {
     public static function serve() {
-        // 1. Ochrana: Vydáváme soubory pouze přihlášeným zaměstnancům
+        // 1. Kontrola, zda je uživatel přihlášen
         if (!Auth::isLoggedIn()) {
             http_response_code(403);
-            die("Přístup odepřen.");
-        }
-
-        $filename = $_GET['name'] ?? '';
-        
-        // 2. Ochrana proti Directory Traversal (LFI)
-        // basename() nekompromisně ořízne cesty typu "../../../etc/passwd" jen na jméno souboru
-        $safeFilename = basename($filename);
-
-        if (empty($safeFilename)) {
-            http_response_code(400);
             exit;
         }
-
-        $filepath = APP_ROOT . '/assets/uploads/' . $safeFilename;
-
-        if (!file_exists($filepath) || !is_file($filepath)) {
-            http_response_code(404);
-            die("Soubor nenalezen.");
+        
+        $filename = $_GET['name'] ?? '';
+        
+        // 2. Ochrana proti Directory Traversal (povoleny pouze bezpečné znaky)
+        // Toto nedovolí použít lomítka '/' nebo zpětná lomítka '\' pro vyskočení ze složky
+        if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $filename)) {
+            http_response_code(400);
+            die("Neplatný název souboru.");
         }
 
-        // 3. Bezpečné určení MIME typu
-        $mimeType = mime_content_type($filepath);
-        if (!$mimeType) {
-            $mimeType = 'application/octet-stream';
+        $filepath = APP_ROOT . '/assets/uploads/' . $filename;
+        
+        // 3. Odeslání souboru
+        if (file_exists($filepath)) {
+            $mime = mime_content_type($filepath);
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . filesize($filepath));
+            readfile($filepath);
+            exit;
         }
-
-        // 4. Odeslání souboru přes PHP
-        header('Content-Type: ' . $mimeType);
-        header('Content-Length: ' . filesize($filepath));
         
-        // Zamezení cachování citlivých dat na veřejných proxy serverech
-        header('Cache-Control: private, max-age=86400');
-        
-        readfile($filepath);
-        exit;
+        http_response_code(404);
+        die("Soubor nenalezen.");
     }
 }

@@ -1,8 +1,10 @@
 <?php
+// app/Controllers/InspectionController.php
 
 class InspectionController {
 
     public static function scan() {
+        // ... (PŮVODNÍ KÓD BEZE ZMĚN) ...
         $hash = trim($_GET['hash'] ?? '');
         $asset = AssetModel::getByHash($hash);
 
@@ -85,6 +87,7 @@ class InspectionController {
     }
 
     public static function fill() {
+        // ... (PŮVODNÍ KÓD BEZE ZMĚN) ...
         $asset_id = (int)($_GET['asset_id'] ?? 0);
         $form_id  = (int)($_GET['form_id'] ?? 0);
 
@@ -135,8 +138,9 @@ class InspectionController {
             }
 
             $formData = $_POST['data'] ?? [];
-            $uploadDir = 'assets/uploads/';
+            $uploadDir = APP_ROOT . '/assets/uploads/';
 
+            // --- BEZPEČNÉ ZPRACOVÁNÍ FOTOGRAFIÍ Z FORMULÁŘE ---
             if (isset($_POST['photos_base64']) && is_array($_POST['photos_base64'])) {
                 @ini_set('memory_limit', '256M');
                 @ini_set('max_execution_time', '60');
@@ -151,10 +155,13 @@ class InspectionController {
                     }
                     $uploadedPaths = []; 
                     foreach ($base64Array as $i => $base64String) {
-                        $savedPath = ImageProcessor::processBase64($base64String, $uploadDir, 5);
-                        if ($savedPath) $uploadedPaths[] = $savedPath;
+                        // Volání nové bezpečné metody
+                        $savedPath = ImageProcessor::saveSecureBase64Image($base64String, $uploadDir);
+                        if ($savedPath) {
+                            $uploadedPaths[] = $savedPath;
+                        }
                     }
-                    $formData[$key] = !empty($uploadedPaths) ? $uploadedPaths : '[Chyba zpracování obrázků - překročen limit]';
+                    $formData[$key] = !empty($uploadedPaths) ? $uploadedPaths : '[Chyba zpracování obrázků nebo žádná platná data]';
                 }
             }
 
@@ -172,7 +179,8 @@ class InspectionController {
 
             foreach ($signatureFields as $sigField) {
                 if (!empty($formData[$sigField]) && strpos($formData[$sigField], 'data:image/') === 0) {
-                    $savedSig = ImageProcessor::processBase64($formData[$sigField], $uploadDir, 2);
+                    // Volání nové bezpečné metody
+                    $savedSig = ImageProcessor::saveSecureBase64Image($formData[$sigField], $uploadDir);
                     if ($savedSig) {
                         $formData[$sigField] = $savedSig; // Nahrazení Base64 za bezpečnou cestu na disku
                     } else {
@@ -237,6 +245,7 @@ class InspectionController {
     }
 
     public static function stats() {
+        // ... (PŮVODNÍ KÓD BEZE ZMĚN) ...
         $asset_id = (int)($_GET['id'] ?? 0);
         if (!Auth::canAccessAsset($asset_id)) {
             http_response_code(403); die("Přístup odepřen: Statistiky pro zařízení z jiného úseku nejsou dostupné.");

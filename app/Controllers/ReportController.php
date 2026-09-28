@@ -29,7 +29,6 @@ class ReportController {
         
         $pdo = Database::getConnection();
 
-        // PŘIDÁNO tk.resolution_photos DO SQL DOTAZU
         $sql = "
             SELECT i.*, a.name as asset_name, t.title as template_name, 
                    u.first_name, u.last_name,
@@ -49,13 +48,8 @@ class ReportController {
         $records = $stmt->fetchAll();
 
         $tcpdfPath = APP_ROOT . '/app/tcpdf/tcpdf.php';
-        if (!file_exists($tcpdfPath)) {
-            die("Chyba: Knihovna TCPDF nebyla nalezena na serveru.");
-        }
-
-        if (!defined('K_PATH_CACHE')) {
-            define('K_PATH_CACHE', APP_ROOT . '/app/tcpdf/');
-        }
+        if (!file_exists($tcpdfPath)) { die("Chyba: Knihovna TCPDF nebyla nalezena na serveru."); }
+        if (!defined('K_PATH_CACHE')) { define('K_PATH_CACHE', APP_ROOT . '/app/tcpdf/'); }
 
         error_reporting(0);
         ini_set('display_errors', 0);
@@ -121,7 +115,7 @@ class ReportController {
                         elseif (is_string($v) && strpos($v, 'assets/uploads/') === 0) {
                             $photoPath = APP_ROOT . '/' . $v;
                             if (file_exists($photoPath)) {
-                                $html .= '<br><img src="' . $photoPath . '" height="100" /><br>';
+                                $html .= '<br><img src="' . $photoPath . '" height="40" /><br>';
                             } else {
                                 $html .= '<i>Fotografie nenalezena</i>';
                             }
@@ -152,12 +146,20 @@ class ReportController {
                         $resolved_date = !empty($row['resolved_at']) ? date('d.m.Y', strtotime($row['resolved_at'])) : 'Neznámé datum';
                         $html .= '<tr><td><b>Vyřešil:</b></td><td>' . htmlspecialchars($row['res_first_name'] . ' ' . $row['res_last_name']) . ' (' . $resolved_date . ')</td></tr>';
                         
+                        // ZPĚTNÁ KOMPATIBILITA PRO PODPIS (Base64 vs Cesta k souboru)
                         if (!empty($row['resolution_signature'])) {
-                            $imgData = preg_replace('#^data:image/[^;]+;base64,#', '', $row['resolution_signature']);
-                            $html .= '<tr><td><b>Podpis opravy:</b></td><td><img src="@' . $imgData . '" height="40" /></td></tr>';
+                            $sigVal = $row['resolution_signature'];
+                            if (strpos($sigVal, 'data:image/') === 0) {
+                                $imgData = preg_replace('#^data:image/[^;]+;base64,#', '', $sigVal);
+                                $html .= '<tr><td><b>Podpis opravy:</b></td><td><img src="@' . $imgData . '" height="40" /></td></tr>';
+                            } else {
+                                $sigPath = APP_ROOT . '/' . $sigVal;
+                                if (file_exists($sigPath)) {
+                                    $html .= '<tr><td><b>Podpis opravy:</b></td><td><img src="' . $sigPath . '" height="40" /></td></tr>';
+                                }
+                            }
                         }
                         
-                        // ZOBRAZENÍ FOTEK OPRAVY DO PDF
                         if (!empty($row['resolution_photos'])) {
                             $resPhotos = json_decode($row['resolution_photos'], true);
                             if (is_array($resPhotos) && count($resPhotos) > 0) {
@@ -171,7 +173,6 @@ class ReportController {
                                 $html .= '</td></tr>';
                             }
                         }
-
                     } else {
                         $html .= '<tr><td colspan="2" style="color: red;"><b>Závada zatím nebyla odstraněna (Čeká na řešení).</b></td></tr>';
                     }

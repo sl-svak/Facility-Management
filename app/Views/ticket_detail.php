@@ -46,31 +46,42 @@
                     <?php 
                         $data = json_decode($ticket['data_json'], true);
                         if (is_array($data)) {
-                            foreach($data as $key =>$val) {
-                                if (is_string($val) && strpos($val, 'data:image/') === 0) {
+                            foreach($data as $key => $val) {
+                                $safeKey = htmlspecialchars($key, ENT_QUOTES, 'UTF-8');
+                                
+                                // Detekce Base64, starých cest a nových názvů souborů z ImageProcessor
+                                $isBase64 = is_string($val) && strpos($val, 'data:image/') === 0;
+                                $isFilePath = is_string($val) && (strpos($val, 'assets/uploads/') === 0 || preg_match('/^img_.*?\.(png|jpe?g|gif|webp)$/i', $val));
+                                $isImgArray = is_array($val) && isset($val[0]) && is_string($val[0]) && (strpos($val[0], 'assets/uploads/') === 0 || preg_match('/^img_.*?\.(png|jpe?g|gif|webp)$/i', $val[0]));
+
+                                if ($isBase64) {
                                     $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
-                                    echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br> <img src='{$safeVal}' style='max-height: 40px; mix-blend-mode: multiply;'></div>";
+                                    echo "<div style='margin-bottom: 5px;'><strong>{$safeKey}:</strong><br> <img src='{$safeVal}' style='max-height: 40px; mix-blend-mode: multiply;'></div>";
                                 } 
-                                elseif (is_array($val) && isset($val[0]) && strpos((string)$val[0], 'assets/uploads/') === 0) {
-                                    echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br>";
-                                    foreach($val as$photo) {
-                                        if (file_exists($photo)) {
-                                            $secureUrl = 'index.php?page=file&name=' . urlencode(basename($photo));
-                                            echo "<a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 60px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc;'></a>";
+                                elseif ($isImgArray) {
+                                    echo "<div style='margin-bottom: 5px;'><strong>{$safeKey}:</strong><br>";
+                                    foreach($val as $photo) {
+                                        $safePhotoName = basename($photo);
+                                        if ($safePhotoName !== '' && file_exists(APP_ROOT . '/assets/uploads/' . $safePhotoName)) {
+                                            $secureUrl = 'index.php?page=file&name=' . urlencode($safePhotoName);
+                                            $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                            echo "<a href='{$safeSecureUrl}' target='_blank'><img src='{$safeSecureUrl}' style='max-height: 60px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc;'></a>";
                                         }
                                     }
                                     echo "</div>";
                                 }
-                                elseif (is_string($val) && strpos($val, 'assets/uploads/') === 0) {
-                                    if (file_exists($val)) {
-                                        $secureUrl = 'index.php?page=file&name=' . urlencode(basename($val));
-                                        echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br> <a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 40px; mix-blend-mode: multiply;'></a></div>";
+                                elseif ($isFilePath) {
+                                    $safePhotoName = basename($val);
+                                    if ($safePhotoName !== '' && file_exists(APP_ROOT . '/assets/uploads/' . $safePhotoName)) {
+                                        $secureUrl = 'index.php?page=file&name=' . urlencode($safePhotoName);
+                                        $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                        echo "<div style='margin-bottom: 5px;'><strong>{$safeKey}:</strong><br> <a href='{$safeSecureUrl}' target='_blank'><img src='{$safeSecureUrl}' style='max-height: 40px; mix-blend-mode: multiply;'></a></div>";
                                     }
                                 }
                                 else {
                                     if (is_array($val)) $val = json_encode($val, JSON_UNESCAPED_UNICODE);
                                     $color = ($val === 'KO') ? 'var(--danger)' : 'var(--text-main)';
-                                    echo "<div style='margin-bottom: 3px;'><strong>{$key}:</strong> <span style='color: {$color};'>" . htmlspecialchars((string)$val) . "</span></div>";
+                                    echo "<div style='margin-bottom: 3px;'><strong>{$safeKey}:</strong> <span style='color: {$color};'>" . htmlspecialchars((string)$val, ENT_QUOTES, 'UTF-8') . "</span></div>";
                                 }
                             }
                         }
@@ -87,7 +98,7 @@
                     
                     <form method="POST" action="index.php?page=ticket_resolve" id="resolveForm" onsubmit="return validateResolution();">
                         <?= Security::csrfField() ?>
-                        <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
+                        <input type="hidden" name="ticket_id" value="<?= htmlspecialchars($ticket['id'], ENT_QUOTES, 'UTF-8') ?>">
                         
                         <label style="display: block; font-weight: bold; margin-bottom: 5px;">Způsob opravy (Poznámka)</label>
                         <textarea name="resolution_text" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px;" required placeholder="Popište, jak byla závada odstraněna..."></textarea>
@@ -128,7 +139,7 @@
                     
                     <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 5px;">Způsob opravy:</p>
                     <div style="font-size: 1.1em; margin-bottom: 20px; font-style: italic;">
-                        "<?= nl2br(htmlspecialchars($ticket['resolution_text'])) ?>"
+                        "<?= nl2br(htmlspecialchars($ticket['resolution_text'], ENT_QUOTES, 'UTF-8')) ?>"
                     </div>
                     
                     <?php if (!empty($ticket['resolution_photos'])): ?>
@@ -136,9 +147,12 @@
                         <?php $resPhotos = json_decode($ticket['resolution_photos'], true); ?>
                         <?php if (is_array($resPhotos) && count($resPhotos) > 0): ?>
                             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-                                <?php foreach ($resPhotos as$rp): ?>
-                                    <?php $secureUrl = 'index.php?page=file&name=' . urlencode(basename($rp)); ?>
-                                    <a href="<?= $secureUrl ?>" target="_blank"><img src="<?= $secureUrl ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></a>
+                                <?php foreach ($resPhotos as $rp): ?>
+                                    <?php 
+                                        $secureUrl = 'index.php?page=file&name=' . urlencode(basename($rp)); 
+                                        $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                    ?>
+                                    <a href="<?= $safeSecureUrl ?>" target="_blank"><img src="<?= $safeSecureUrl ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></a>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
@@ -154,10 +168,10 @@
                             <div style="text-align: right; flex-grow: 1;">
                                 <p style="color: var(--text-muted); font-size: 0.8em; margin: 0 0 2px 0;">Podpis:</p>
                                 <?php 
-                                    $sigVal =$ticket['resolution_signature'];
+                                    $sigVal = $ticket['resolution_signature'];
                                     $sigSrc = (strpos($sigVal, 'data:image/') === 0) 
                                         ? htmlspecialchars($sigVal, ENT_QUOTES, 'UTF-8') 
-                                        : 'index.php?page=file&name=' . urlencode(basename($sigVal));
+                                        : htmlspecialchars('index.php?page=file&name=' . urlencode(basename($sigVal)), ENT_QUOTES, 'UTF-8');
                                 ?>
                                 <img src="<?= $sigSrc ?>" alt="Podpis technika" style="max-height: 50px; mix-blend-mode: multiply;">
                             </div>

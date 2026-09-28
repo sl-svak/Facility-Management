@@ -101,24 +101,33 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                         foreach($data as $key => $val) {
                                             $displayLabel = $currentMap[$key] ?? $key; 
                                             
-                                            if (is_string($val) && strpos($val, 'data:image/') === 0) {
+                                            // Detekce Base64, starých cest a nových názvů souborů z ImageProcessor
+                                            $isBase64 = is_string($val) && strpos($val, 'data:image/') === 0;
+                                            $isFilePath = is_string($val) && (strpos($val, 'assets/uploads/') === 0 || preg_match('/^img_.*?\.(png|jpe?g|gif|webp)$/i', $val));
+                                            $isImgArray = is_array($val) && isset($val[0]) && is_string($val[0]) && (strpos($val[0], 'assets/uploads/') === 0 || preg_match('/^img_.*?\.(png|jpe?g|gif|webp)$/i', $val[0]));
+
+                                            if ($isBase64) {
                                                 $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
                                                 echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br> <img src='{$safeVal}' style='max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;'></div>";
                                             } 
-                                            elseif (is_array($val) && isset($val[0]) && strpos((string)$val[0], 'assets/uploads/') === 0) {
+                                            elseif ($isImgArray) {
                                                 echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br><div style='display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;'>";
                                                 foreach($val as $photo) {
-                                                    if (file_exists($photo)) {
-                                                        $secureUrl = 'index.php?page=file&name=' . urlencode(basename($photo));
-                                                        echo "<a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 80px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;'></a>";
+                                                    $safePhotoName = basename($photo);
+                                                    if ($safePhotoName !== '' && file_exists(APP_ROOT . '/assets/uploads/' . $safePhotoName)) {
+                                                        $secureUrl = 'index.php?page=file&name=' . urlencode($safePhotoName);
+                                                        $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                                        echo "<a href='{$safeSecureUrl}' target='_blank'><img src='{$safeSecureUrl}' style='max-height: 80px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;'></a>";
                                                     }
                                                 }
                                                 echo "</div></div>";
                                             }
-                                            elseif (is_string($val) && strpos($val, 'assets/uploads/') === 0) {
-                                                if (file_exists($val)) {
-                                                    $secureUrl = 'index.php?page=file&name=' . urlencode(basename($val));
-                                                    echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br> <a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;'></a></div>";
+                                            elseif ($isFilePath) {
+                                                $safePhotoName = basename($val);
+                                                if ($safePhotoName !== '' && file_exists(APP_ROOT . '/assets/uploads/' . $safePhotoName)) {
+                                                    $secureUrl = 'index.php?page=file&name=' . urlencode($safePhotoName);
+                                                    $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                                    echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br> <a href='{$safeSecureUrl}' target='_blank'><img src='{$safeSecureUrl}' style='max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;'></a></div>";
                                                 }
                                             }
                                             else {
@@ -158,7 +167,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;">
                                                         <?php foreach ($resPhotos as $rp): ?>
                                                             <?php $secureUrl = 'index.php?page=file&name=' . urlencode(basename($rp)); ?>
-                                                            <a href="<?= $secureUrl ?>" target="_blank"><img src="<?= $secureUrl ?>" style="max-height: 60px; border-radius: 4px; border: 1px solid #ccc;"></a>
+                                                            <a href="<?= htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank"><img src="<?= htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8') ?>" style="max-height: 60px; border-radius: 4px; border: 1px solid #ccc;"></a>
                                                         <?php endforeach; ?>
                                                     </div>
                                                 </div>
@@ -168,12 +177,11 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                         <?php if (!empty($insp['resolution_signature'])): ?>
                                             <div>
                                                 <strong>Podpis:</strong><br>
-                                                <!-- KOMPATIBILNÍ VÝPIS PODPISU -->
                                                 <?php 
                                                     $sigVal = $insp['resolution_signature'];
                                                     $sigSrc = (strpos($sigVal, 'data:image/') === 0) 
                                                         ? htmlspecialchars($sigVal, ENT_QUOTES, 'UTF-8') 
-                                                        : 'index.php?page=file&name=' . urlencode(basename($sigVal));
+                                                        : htmlspecialchars('index.php?page=file&name=' . urlencode(basename($sigVal)), ENT_QUOTES, 'UTF-8');
                                                 ?>
                                                 <img src="<?= $sigSrc ?>" alt="Podpis technika" style="max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;">
                                             </div>

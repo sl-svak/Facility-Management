@@ -2,77 +2,67 @@
 
 class ImageProcessor {
     
-    /**
-     * Bezpečně zpracuje Base64 obrázek, ověří ho, zmenší a uloží jako čistý JPEG.
-     * 
-     * @param string $base64String Zdrojový řetězec z formuláře
-     * @param string $uploadDir Cílová složka (např. 'assets/uploads/')
-     * @param int $maxMb Maximální povolená velikost (před dekódováním) v MB
-     * @return string|false Relativní cesta k uloženému souboru nebo false při chybě
-     */
+    // Ochrana proti Pixel Flood útokům (Maximálně 20 Megapixelů, např. 5000x4000)
+    private static $MAX_PIXELS = 20000000;
+
     public static function processBase64($base64String, $uploadDir, $maxMb = 5) {
-        // 1. Předběžná kontrola velikosti Base64 řetězce (Zabránění memory exhaustion)
-        $maxBytes = $maxMb * 1024 * 1024;
-        $approxSize = strlen($base64String) * 0.75; // Base64 je o 33% větší než binárka
+        if (empty($base64String)) return null;
+
+        // 1. Kontrola formátu a extrakce dat
+        if (!preg_match('/^data:image\/(\w+);base64,/', $base64String, $type)) {
+            return null;
+        }
         
-        if ($approxSize > $maxBytes) {
-            error_log("ImageProcessor: Obrázek překročil limit {$maxMb} MB.");
-            return false;
+        $extension = strtolower($type[1]);
+        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])) {
+            return null;
         }
 
-        // 2. Extrakce hlavičky a dat
-        if (!preg_match('/^data:image\/(\w+);base64,(.+)$/', $base64String, $matches)) {
-            error_log("ImageProcessor: Neplatný formát Base64 URI.");
-            return false;
-        }
-        $base64Data = $matches[2];
-
-        // 3. Striktní dekódování
+        $base64Data = substr($base64String, strpos($base64String, ',') + 1);
         $decodedData = base64_decode($base64Data, true);
-        if ($decodedData === false) {
-            error_log("ImageProcessor: Selhalo striktní dekódování Base64.");
-            return false;
+        
+        if ($decodedData === false) return null;
+
+        // 2. OCHRANA: Velikost payloadu (v bajtech)
+        $maxBytes = $maxMb * 1024 * 1024;
+        if (strlen($decodedData) > $maxBytes) {
+            error_log("Zablokován velký soubor: " . strlen($decodedData) . " B");
+            return null;
         }
 
-        // 4. Skutečná kontrola MIME typu a rozměrů (ochrana proti podvržení)
+        // 3. Rychlé zjištění rozměrů BEZ alokace obrazu do RAM
         $imageInfo = @getimagesizefromstring($decodedData);
-        if ($imageInfo === false) {
-            error_log("ImageProcessor: Data neobsahují platný obrázek.");
-            return false;
+        if (!$imageInfo) return null;
+
+        $width = $imageInfo[0];
+        $height = $imageInfo[1];
+
+        // 4. OCHRANA PROTI MEMORY DoS (Decompression Bomb)
+        $totalPixels = $width * $height;
+        if ($totalPixels > self::$MAX_PIXELS) {
+            error_log("Odmítnut útok Pixel Flood! Obrázek má $totalPixels pixelů.");
+            return null;
         }
 
-        // Povolíme pouze JPEG, PNG a WEBP
-        $allowedTypes = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
-        if (!in_array($imageInfo[2], $allowedTypes)) {
-            error_log("ImageProcessor: Nepodporovaný formát obrázku (detekováno: {$imageInfo[2]}).");
-            return false;
-        }
-
-        // 5. Načtení do GD knihovny (Tím se zbavíme škodlivého kódu v EXIF a pod.)
+        // -----------------------------------------------------------
+        // AŽ NYNÍ JE ZCELA BEZPEČNÉ ROZBALIT OBRÁZEK DO PAMĚTI RAM
+        // -----------------------------------------------------------
         $img = @imagecreatefromstring($decodedData);
-        if (!$img) {
-            return false;
-        }
+        if (!$img) return null;
 
-        // 6. Optimalizace rozměrů (Maximálně 1200px delší strana pro úsporu místa a paměti)
-        $width = imagesx($img);
-        $height = imagesy($img);
-        $maxDim = 1200;
-
-        if ($width > $maxDim || $height > $maxDim) {
-            $ratio = $width / $height;
-            if ($ratio > 1) {
-                $newWidth = $maxDim;
-                $newHeight = (int)($maxDim / $ratio);
-            } else {
-                $newHeight = $maxDim;
-                $newWidth = (int)($maxDim * $ratio);
-            }
-
+        // 5. Automatický Resize (na max 1920x1080) pro úsporu místa na disku
+        $maxWidth = 1920;
+        $maxHeight = 1080;
+        
+        if ($width > $maxWidth || $height > $maxHeight) {
+            $ratio = min($maxWidth / $width, $maxHeight / $height);
+            $newWidth = (int)($width * $ratio);
+            $newHeight = (int)($height * $ratio);
+            
             $newImg = imagecreatetruecolor($newWidth, $newHeight);
             
-            // Zachování průhlednosti pro případné PNG
-            if ($imageInfo[2] === IMAGETYPE_PNG || $imageInfo[2] === IMAGETYPE_WEBP) {
+            // Zachování průhlednosti
+            if ($extension === 'png' || $extension === 'webp') {
                 imagealphablending($newImg, false);
                 imagesavealpha($newImg, true);
                 $transparent = imagecolorallocatealpha($newImg, 255, 255, 255, 127);
@@ -84,20 +74,17 @@ class ImageProcessor {
             $img = $newImg;
         }
 
-        // 7. Zajištění existence cílové složky
         if (!is_dir($uploadDir)) {
-            @mkdir($uploadDir, 0755, true);
+            mkdir($uploadDir, 0755, true);
         }
 
-        // 8. Uložení jako standardizovaný JPEG (Kvalita 80% je ideální kompromis)
-        // Vygenerujeme zcela unikátní a bezpečný název souboru
-        $filename = 'img_' . time() . '_' . bin2hex(random_bytes(4)) . '.jpg';
-        $destPath = rtrim($uploadDir, '/') . '/' . $filename;
+        // Vždy převádíme do moderního a bezpečného WebP formátu
+        $filename = 'img_' . uniqid() . '_' . bin2hex(random_bytes(4)) . '.webp';
+        $filepath = $uploadDir . $filename;
 
-        // Vždy ukládáme jako JPEG pro konzistenci
-        $success = imagejpeg($img, $destPath, 80);
+        imagewebp($img, $filepath, 80);
         imagedestroy($img);
 
-        return $success ? $destPath : false;
+        return $filepath;
     }
 }

@@ -29,7 +29,7 @@ class Auth {
         // 1. OBRANA PROTI BRUTE-FORCE A ZABEZPEČENÍ NATU (DVOUVRSTVÝ MODEL)
         // ---------------------------------------------------------------------
         
-        // A) Lokální limit: 5 pokusů pro konkrétní kombinaci IP + Uživatelské jméno
+        // A) Lokální limit: 3 pokusy pro konkrétní kombinaci IP + Uživatelské jméno
         // (Ochrání konkrétní účet, ale nezablokuje kolegy ve stejné kanceláři)
         $stmtTargeted = $pdo->prepare("
             SELECT COUNT(*) FROM login_logs 
@@ -37,11 +37,11 @@ class Auth {
             AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
         ");
         $stmtTargeted->execute([$ip, $username]);
-        if ((int)$stmtTargeted->fetchColumn() >= 5) {
+        if ((int)$stmtTargeted->fetchColumn() >= 3) {
             return 'blocked';
         }
 
-        // B) Globální limit: 25 pokusů pro danou IP adresu bez ohledu na jméno
+        // B) Globální limit: 15 pokusů pro danou IP adresu bez ohledu na jméno
         // (Zastaví plošné zkoušení slovníků a hádání jmen z jedné adresy)
         $stmtGlobal = $pdo->prepare("
             SELECT COUNT(*) FROM login_logs 
@@ -49,7 +49,7 @@ class Auth {
             AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
         ");
         $stmtGlobal->execute([$ip]);
-        if ((int)$stmtGlobal->fetchColumn() >= 25) {
+        if ((int)$stmtGlobal->fetchColumn() >= 15) {
             return 'blocked';
         }
 
@@ -163,5 +163,56 @@ class Auth {
      */
     public static function isManager() {
         return isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'manager']);
+    }
+
+    /**
+     * Centrální kontrola oprávnění uživatele ke konkrétnímu zařízení (Ochrana proti IDOR)
+     * 
+     * @param int $asset_id ID zařízení
+     * @return bool True pokud má přístup, jinak False
+     */
+    public static function canAccessAsset($asset_id) {
+        if (self::isAdmin()) return true; // Administrátor má přístup všude
+
+        $user_id = $_SESSION['user_id'] ?? 0;
+        require_once APP_ROOT . '/app/Models/UserModel.php';
+        $currentUser = UserModel::getById($user_id);
+        $userDepts = $currentUser['departments'] ?? [];
+        
+        // Pokud nemá uživatel omezení na úseky, vidí vše
+        if (empty($userDepts)) return true;
+
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare("SELECT department_id FROM assets WHERE id = ?");
+        $stmt->execute([(int)$asset_id]);
+        $asset = $stmt->fetch();
+
+        if (!$asset) return false;
+        
+        // Globální zařízení (bez přiřazeného úseku) vidí všichni
+        if ($asset['department_id'] === null) return true;
+
+        return in_array($asset['department_id'], $userDepts);
+    }
+
+    /**
+     * Generuje bezpečnou SQL klauzuli pro WHERE filtrování výpisů podle oprávnění.
+     * Používá se pro plošné filtrování seznamů a reportů.
+     * 
+     * @param string $tableAlias Alias tabulky zařízení v SQL dotazu (např. 'a' pro assets)
+     * @return string SQL snippet pro vložení do WHERE (např. "(a.department_id IN (1,2) OR a.department_id IS NULL)")
+     */
+    public static function getDepartmentSqlFilter($tableAlias = 'a') {
+        if (self::isAdmin()) return "1=1"; // Administrátor nefiltruje
+        
+        $user_id = $_SESSION['user_id'] ?? 0;
+        require_once APP_ROOT . '/app/Models/UserModel.php';
+        $currentUser = UserModel::getById($user_id);
+        $userDepts = $currentUser['departments'] ?? [];
+        
+        if (empty($userDepts)) return "1=1"; // Uživatel bez omezení
+        
+        $in = implode(',', array_map('intval', $userDepts));
+        return "({$tableAlias}.department_id IN ($in) OR {$tableAlias}.department_id IS NULL)";
     }
 }

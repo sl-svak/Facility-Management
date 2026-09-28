@@ -190,11 +190,41 @@ body {
     .content-wrapper { padding: 10px 10px 90px 10px; }
 }
 
+
 /* ==========================================================================
-   TMAVÝ REŽIM (DARK MODE)
+   UŽIVATELSKÉ PREFERENCE (MOTIVY, PÍSMO, QR)
    ========================================================================== */
+
+/* Vynucený světlý režim */
+body.theme-light {
+    --primary: #2c3e50;
+    --background: #f4f7f6;
+    --card-bg: #ffffff;
+    --text-main: #333333;
+    --text-muted: #666666;
+    --border-color: #eeeeee;
+}
+body.theme-light input, body.theme-light select, body.theme-light textarea { background-color: #fff; color: #000; border: 1px solid #ccc; }
+body.theme-light .table th { background: rgba(0,0,0,0.02); }
+
+/* Vynucený tmavý režim */
+body.theme-dark {
+    --primary: #34495e;
+    --primary-hover: #465c71;
+    --background: #121212;
+    --card-bg: #1e1e1e;
+    --text-main: #e0e0e0;
+    --text-muted: #aaaaaa;
+    --border-color: #333333;
+}
+body.theme-dark input, body.theme-dark select, body.theme-dark textarea { background-color: #2a2a2a; color: #e0e0e0; border: 1px solid #444; }
+body.theme-dark .table th { background: #252525; }
+body.theme-dark .badge-open { background: #4a191e; color: #ffb3b8; }
+body.theme-dark .badge-closed { background: #153820; color: #a8deb8; }
+
+/* Tmavý režim (Auto podle systému - pokud nemá vynucenou světlou barvu) */
 @media (prefers-color-scheme: dark) {
-    :root {
+    body:not(.theme-light) {
         --primary: #34495e;
         --primary-hover: #465c71;
         --background: #121212;
@@ -203,24 +233,152 @@ body {
         --text-muted: #aaaaaa;
         --border-color: #333333;
     }
-    
-    input, select, textarea {
-        background-color: #2a2a2a;
-        color: #e0e0e0;
-        border: 1px solid #444;
-    }
-    
-    .table th {
-        background: #252525;
-    }
-    
-    .badge-open {
-        background: #4a191e;
-        color: #ffb3b8;
-    }
-    
-    .badge-closed {
-        background: #153820;
-        color: #a8deb8;
+    body:not(.theme-light) input, body:not(.theme-light) select, body:not(.theme-light) textarea { background-color: #2a2a2a; color: #e0e0e0; border: 1px solid #444; }
+    body:not(.theme-light) .table th { background: #252525; }
+    body:not(.theme-light) .badge-open { background: #4a191e; color: #ffb3b8; }
+    body:not(.theme-light) .badge-closed { background: #153820; color: #a8deb8; }
+}
+
+/* Zvětšení písma pro mobily a tablety (třída font-large) */
+@media screen and (max-width: 768px) {
+    body.font-large, body.font-large input, body.font-large select, body.font-large button, body.font-large textarea, body.font-large .table {
+        font-size: 16px !important;
     }
 }
+
+/* Logika zobrazení QR čtečky (Skrytí na velkých PC s myší) */
+@media (min-width: 1024px) and (pointer: fine) {
+    body.qr-auto .qr-menu-item { display: none !important; }
+}
+
+/* ==========================================================================
+   VLASTNÍ KOMPONENTY: DROPDOWN (PRO CHECKBOXY APOD.)
+   ========================================================================== */
+.custom-dropdown { position: relative; width: 100%; }
+.custom-dropdown-button { 
+    width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; 
+    background: var(--card-bg); color: var(--text-main); text-align: left; cursor: pointer; 
+    box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; 
+}
+.custom-dropdown-content { 
+    display: none; position: absolute; background-color: var(--card-bg); min-width: 100%; 
+    max-height: 200px; overflow-y: auto; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); 
+    z-index: 100; border: 1px solid var(--border-color); border-radius: 0 0 4px 4px; 
+    top: 100%; left: 0; 
+}
+.custom-dropdown.active .custom-dropdown-content { display: block; }
+.custom-dropdown-content label { 
+    display: flex; align-items: center; padding: 8px 12px; cursor: pointer; 
+    font-weight: normal; color: var(--text-main); margin: 0; 
+}
+.custom-dropdown-content label:hover { background-color: rgba(0,0,0,0.05); }
+
+/* ==========================================================================
+   FORMULÁŘE PRO VYPLŇOVÁNÍ REVIZÍ (inspection_fill.php)
+   ========================================================================== */
+.form-field-block { 
+    margin-bottom: 20px; 
+    padding: 15px; 
+    background: var(--background); 
+    border: 1px solid var(--border-color); 
+    border-radius: 8px; 
+    transition: all 0.3s ease; 
+}
+.form-field-block:focus-within { 
+    background: rgba(52, 152, 219, 0.05); 
+    border-color: var(--info); 
+    box-shadow: 0 0 8px rgba(52, 152, 219, 0.15); 
+}
+.form-field-block label.field-title { 
+    display: block; 
+    font-weight: bold; 
+    margin-bottom: 10px; 
+    color: var(--text-main); 
+    font-size: 1.05em; 
+}
+.form-field-block input[type="text"], 
+.form-field-block input[type="number"], 
+.form-field-block textarea { 
+    width: 100%; 
+    padding: 12px; 
+    border: 1px solid var(--border-color); 
+    border-radius: 4px; 
+    box-sizing: border-box; 
+    font-size: 1em; 
+    background: var(--card-bg); 
+    color: var(--text-main); 
+    font-family: inherit; 
+}
+.form-field-block input:focus, 
+.form-field-block textarea:focus { 
+    outline: none; 
+    border-color: var(--info); 
+}
+.radio-btn-neutral, .radio-btn-ok, .radio-btn-ko { 
+    flex: 1; 
+    text-align: center; 
+    padding: 12px; 
+    border: 2px solid var(--border-color); 
+    border-radius: 6px; 
+    cursor: pointer; 
+    background: var(--card-bg); 
+    font-weight: bold; 
+    color: var(--text-muted); 
+    margin: 0; 
+    transition: all 0.2s ease; 
+}
+.radio-btn-neutral:hover { background: var(--background); } 
+.radio-btn-neutral:has(input:checked) { border-color: var(--info); background: rgba(52, 152, 219, 0.1); color: var(--info); }
+.radio-btn-ok:hover { background: rgba(39, 174, 96, 0.05); } 
+.radio-btn-ok:has(input:checked) { border-color: var(--success); background: rgba(39, 174, 96, 0.1); color: var(--success); }
+.radio-btn-ko:hover { background: rgba(231, 76, 60, 0.05); } 
+.radio-btn-ko:has(input:checked) { border-color: var(--danger); background: rgba(231, 76, 60, 0.1); color: var(--danger); }
+
+/* ==========================================================================
+   GRAFY A ANALYTIKA (asset_stats.php)
+   ========================================================================== */
+.charts-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); 
+    gap: 20px; 
+    margin-top: 20px; 
+}
+@media (max-width: 600px) { 
+    .charts-grid { grid-template-columns: 1fr; } 
+}
+.chart-card { 
+    background: var(--card-bg); 
+    padding: 20px; 
+    border: 1px solid var(--border-color); 
+    border-radius: 8px; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02); 
+}
+.badge-bar { 
+    background: rgba(22, 160, 133, 0.15); 
+    color: #16a085; 
+    padding: 4px 8px; 
+    border-radius: 4px; 
+    font-size: 0.8em; 
+    font-weight: bold; 
+}
+.badge-area { 
+    background: rgba(41, 128, 185, 0.15); 
+    color: var(--info); 
+    padding: 4px 8px; 
+    border-radius: 4px; 
+    font-size: 0.8em; 
+    font-weight: bold; 
+}
+/* Úprava tooltipu pro grafy v tmavém režimu */
+body.theme-dark .apexcharts-tooltip, 
+body:not(.theme-light) .apexcharts-tooltip {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+body.theme-dark .apexcharts-tooltip-title, 
+body:not(.theme-light) .apexcharts-tooltip-title {
+    background: rgba(0,0,0,0.2) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+

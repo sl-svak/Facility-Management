@@ -101,7 +101,12 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 </div>
 
 <script>
-    let schema = <?= $formSchema ?>;
+    // --- OCHRANA PŘED STORED XSS ---
+    // Bezpečné předání dat z PHP do JS s ošetřením všech nebezpečných HTML znaků
+    let schema = <?= json_encode(
+        json_decode($formSchema, true) ?: [], 
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) ?>;
 
     document.addEventListener("DOMContentLoaded", function() {
         schema.forEach(field => { if (!field.id) field.id = field.label; });
@@ -197,11 +202,14 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
 
             let requiredStar = field.required ? '<span style="color: var(--danger); font-weight: bold; margin-left: 4px;">*</span>' : '';
 
+            // Vnitřní escapování HTML ve vykresleném náhledu
+            let safeLabel = field.label.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
             html += `
                 <div style="padding: 10px; border: 1px solid var(--border-color); margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background: var(--card-bg);">
                     <div style="color: var(--text-main);">
                         <span class="material-symbols-outlined" style="vertical-align: middle; color: var(--text-muted); font-size: 1.2em;">${icon}</span>
-                        <strong>${field.label}</strong>${requiredStar}${extraInfo}
+                        <strong>${safeLabel}</strong>${requiredStar}${extraInfo}
                     </div>
                     <div style="display: flex; gap: 5px;">
                         <button type="button" onclick="moveField(${index}, 'up')" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><span class="material-symbols-outlined">arrow_upward</span></button>

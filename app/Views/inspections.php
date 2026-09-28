@@ -1,7 +1,6 @@
 <?php 
 if (!defined('APP_ROOT')) exit; 
 
-// NAČTENÍ ŠABLON PRO PŘEKLAD ID NA NÁZVY POLÍ
 $pdo = Database::getConnection();
 $stmt = $pdo->query("SELECT id, schema_json FROM form_templates");
 $allSchemas = [];
@@ -102,7 +101,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                         foreach($data as $key => $val) {
                                             $displayLabel = $currentMap[$key] ?? $key; 
                                             
-                                            // BEZPEČNÉ ESCAPOVÁNÍ OBRÁZKŮ (XSS OCHRANA)
                                             if (is_string($val) && strpos($val, 'data:image/') === 0) {
                                                 $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
                                                 echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br> <img src='{$safeVal}' style='max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;'></div>";
@@ -111,16 +109,16 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                                 echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br><div style='display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;'>";
                                                 foreach($val as $photo) {
                                                     if (file_exists($photo)) {
-                                                        $safePhoto = htmlspecialchars($photo, ENT_QUOTES, 'UTF-8');
-                                                        echo "<a href='{$safePhoto}' target='_blank'><img src='{$safePhoto}' style='max-height: 80px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;'></a>";
+                                                        $secureUrl = 'index.php?page=file&name=' . urlencode(basename($photo));
+                                                        echo "<a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 80px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;'></a>";
                                                     }
                                                 }
                                                 echo "</div></div>";
                                             }
                                             elseif (is_string($val) && strpos($val, 'assets/uploads/') === 0) {
                                                 if (file_exists($val)) {
-                                                    $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
-                                                    echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br> <a href='{$safeVal}' target='_blank'><img src='{$safeVal}' style='max-height: 80px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 5px; cursor: pointer;'></a></div>";
+                                                    $secureUrl = 'index.php?page=file&name=' . urlencode(basename($val));
+                                                    echo "<div style='margin-bottom: 8px;'><strong>" . htmlspecialchars($displayLabel) . ":</strong><br> <a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;'></a></div>";
                                                 }
                                             }
                                             else {
@@ -152,7 +150,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                         <div style="color: var(--text-main); margin-bottom: 10px; font-style: italic;">"<?= nl2br(htmlspecialchars($insp['resolution_text'] ?? '')) ?>"</div>
                                         <div style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 10px;"><strong>Technik:</strong> <?= htmlspecialchars($insp['res_first_name'] . ' ' . $insp['res_last_name']) ?></div>
                                         
-                                        <!-- BEZPEČNÉ VYKRESLENÍ FOTEK OPRAVY -->
                                         <?php if (!empty($insp['resolution_photos'])): ?>
                                             <?php $resPhotos = json_decode($insp['resolution_photos'], true); ?>
                                             <?php if (is_array($resPhotos) && count($resPhotos) > 0): ?>
@@ -160,19 +157,25 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                                     <strong>Fotografie z opravy:</strong><br>
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;">
                                                         <?php foreach ($resPhotos as $rp): ?>
-                                                            <?php $safeRp = htmlspecialchars($rp, ENT_QUOTES, 'UTF-8'); ?>
-                                                            <a href="<?= $safeRp ?>" target="_blank"><img src="<?= $safeRp ?>" style="max-height: 60px; border-radius: 4px; border: 1px solid #ccc;"></a>
+                                                            <?php $secureUrl = 'index.php?page=file&name=' . urlencode(basename($rp)); ?>
+                                                            <a href="<?= $secureUrl ?>" target="_blank"><img src="<?= $secureUrl ?>" style="max-height: 60px; border-radius: 4px; border: 1px solid #ccc;"></a>
                                                         <?php endforeach; ?>
                                                     </div>
                                                 </div>
                                             <?php endif; ?>
                                         <?php endif; ?>
 
-                                        <!-- BEZPEČNÉ VYKRESLENÍ PODPISU -->
                                         <?php if (!empty($insp['resolution_signature'])): ?>
                                             <div>
                                                 <strong>Podpis:</strong><br>
-                                                <img src="<?= htmlspecialchars($insp['resolution_signature'], ENT_QUOTES, 'UTF-8') ?>" alt="Podpis technika" style="max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;">
+                                                <!-- KOMPATIBILNÍ VÝPIS PODPISU -->
+                                                <?php 
+                                                    $sigVal = $insp['resolution_signature'];
+                                                    $sigSrc = (strpos($sigVal, 'data:image/') === 0) 
+                                                        ? htmlspecialchars($sigVal, ENT_QUOTES, 'UTF-8') 
+                                                        : 'index.php?page=file&name=' . urlencode(basename($sigVal));
+                                                ?>
+                                                <img src="<?= $sigSrc ?>" alt="Podpis technika" style="max-height: 40px; mix-blend-mode: multiply; margin-top: 5px;">
                                             </div>
                                         <?php endif; ?>
                                     </div>

@@ -47,7 +47,6 @@
                         $data = json_decode($ticket['data_json'], true);
                         if (is_array($data)) {
                             foreach($data as $key =>$val) {
-                                // XSS bezpečný výpis z JSON payloadu kontroly
                                 if (is_string($val) && strpos($val, 'data:image/') === 0) {
                                     $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
                                     echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br> <img src='{$safeVal}' style='max-height: 40px; mix-blend-mode: multiply;'></div>";
@@ -56,16 +55,16 @@
                                     echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br>";
                                     foreach($val as$photo) {
                                         if (file_exists($photo)) {
-                                            $safePhoto = htmlspecialchars($photo, ENT_QUOTES, 'UTF-8');
-                                            echo "<a href='{$safePhoto}' target='_blank'><img src='{$safePhoto}' style='max-height: 60px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc;'></a>";
+                                            $secureUrl = 'index.php?page=file&name=' . urlencode(basename($photo));
+                                            echo "<a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 60px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc;'></a>";
                                         }
                                     }
                                     echo "</div>";
                                 }
                                 elseif (is_string($val) && strpos($val, 'assets/uploads/') === 0) {
                                     if (file_exists($val)) {
-                                        $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
-                                        echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br> <a href='{$safeVal}' target='_blank'><img src='{$safeVal}' style='max-height: 60px; border-radius: 4px; border: 1px solid #ccc;'></a></div>";
+                                        $secureUrl = 'index.php?page=file&name=' . urlencode(basename($val));
+                                        echo "<div style='margin-bottom: 5px;'><strong>{$key}:</strong><br> <a href='{$secureUrl}' target='_blank'><img src='{$secureUrl}' style='max-height: 40px; mix-blend-mode: multiply;'></a></div>";
                                     }
                                 }
                                 else {
@@ -86,7 +85,7 @@
                 <div style="background: #e8f4f8; padding: 20px; border-radius: 8px; border: 1px solid #bce0ee;">
                     <h3 style="margin-top: 0; color: #2980b9;">Vyřešit závadu</h3>
                     
-                    <form method="POST" action="index.php?page=ticket_resolve" id="resolveForm">
+                    <form method="POST" action="index.php?page=ticket_resolve" id="resolveForm" onsubmit="return validateResolution();">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
                         
@@ -94,129 +93,33 @@
                         <textarea name="resolution_text" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px;" required placeholder="Popište, jak byla závada odstraněna..."></textarea>
                         
                         <label style="display: block; font-weight: bold; margin-bottom: 5px;">Fotografie opravy (Volitelné)</label>
-                        <input type="file" id="photoInput" accept="image/*" multiple style="margin-bottom: 10px;">
-                        <div id="photoPreview" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;"></div>
-                        <div id="hiddenPhotoInputs"></div>
+                        
+                        <div style="background: #fff; border: 1px dashed #ccc; border-radius: 4px; padding: 10px; text-align: center; margin-bottom: 15px;">
+                            <div id="photoPreview" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px;"></div>
+                            
+                            <div style="display: flex; gap: 10px;">
+                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addResolutionPhoto('camera')">
+                                    <span class="material-symbols-outlined" style="vertical-align: middle;">photo_camera</span> Vyfotit
+                                </button>
+                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addResolutionPhoto('gallery')">
+                                    <span class="material-symbols-outlined" style="vertical-align: middle;">photo_library</span> Z galerie
+                                </button>
+                            </div>
+                            
+                            <div id="hiddenPhotoInputs"></div>
+                        </div>
 
                         <label style="display: block; font-weight: bold; margin-bottom: 5px;">Podpis technika</label>
                         <div style="border: 1px solid #ccc; background: #fff; border-radius: 4px; margin-bottom: 10px;">
                             <canvas id="signatureCanvas" width="350" height="150" style="width: 100%; touch-action: none; cursor: crosshair;"></canvas>
                         </div>
-                        <button type="button" class="btn" id="clearBtn" style="background: #95a5a6; padding: 6px 12px; font-size: 0.9em; margin-bottom: 15px;">Vymazat podpis</button>
+                        <button type="button" class="btn" onclick="clearSignature()" style="background: #95a5a6; padding: 6px 12px; font-size: 0.9em; margin-bottom: 15px;">Vymazat podpis</button>
                         
-                        <input type="hidden" name="resolution_signature" id="signatureInput" required>
+                        <input type="hidden" name="resolution_signature" id="signatureInput">
                         
                         <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.1em; padding: 12px; background: #27ae60;">Uložit opravu a uzavřít tiket</button>
                     </form>
                 </div>
-
-                <script>
-                    // Zpracování obrázků na Base64
-                    const photoInput = document.getElementById('photoInput');
-                    const photoPreview = document.getElementById('photoPreview');
-                    const hiddenPhotoInputs = document.getElementById('hiddenPhotoInputs');
-
-                    photoInput.addEventListener('change', function(e) {
-                        photoPreview.innerHTML = '';
-                        hiddenPhotoInputs.innerHTML = '';
-                        
-                        Array.from(e.target.files).forEach((file, index) => {
-                            if (!file.type.match('image.*')) return;
-                            
-                            const reader = new FileReader();
-                            reader.onload = function(event) {
-                                const base64String = event.target.result;
-                                
-                                const img = document.createElement('img');
-                                img.src = base64String;
-                                img.style.maxHeight = '80px';
-                                img.style.borderRadius = '4px';
-                                img.style.border = '1px solid #ccc';
-                                photoPreview.appendChild(img);
-                                
-                                const hiddenInput = document.createElement('input');
-                                hiddenInput.type = 'hidden';
-                                hiddenInput.name = `resolution_photos_base64[${index}]`;
-                                hiddenInput.value = base64String;
-                                hiddenPhotoInputs.appendChild(hiddenInput);
-                            };
-                            reader.readAsDataURL(file);
-                        });
-                    });
-
-                    // Plátno pro podpis
-                    const canvas = document.getElementById('signatureCanvas');
-                    const ctx = canvas.getContext('2d');
-                    let isDrawing = false;
-
-                    function resizeCanvas() {
-                        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                        const rect = canvas.getBoundingClientRect();
-                        canvas.width = rect.width * ratio;
-                        canvas.height = rect.height * ratio;
-                        ctx.scale(ratio, ratio);
-                        ctx.lineWidth = 2;
-                        ctx.lineCap = 'round';
-                        ctx.strokeStyle = '#000';
-                    }
-                    window.addEventListener('resize', resizeCanvas);
-                    resizeCanvas();
-
-                    function getPos(e) {
-                        const rect = canvas.getBoundingClientRect();
-                        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-                        return { x: clientX - rect.left, y: clientY - rect.top };
-                    }
-
-                    function start(e) { 
-                        isDrawing = true; 
-                        const pos = getPos(e);
-                        ctx.beginPath();
-                        ctx.moveTo(pos.x, pos.y);
-                        e.preventDefault();
-                    }
-                    function draw(e) {
-                        if (!isDrawing) return;
-                        const pos = getPos(e);
-                        ctx.lineTo(pos.x, pos.y);
-                        ctx.stroke();
-                        e.preventDefault();
-                    }
-                    function stop(e) { 
-                        if (isDrawing) {
-                            ctx.closePath();
-                            isDrawing = false; 
-                        }
-                    }
-
-                    canvas.addEventListener('mousedown', start);
-                    canvas.addEventListener('mousemove', draw);
-                    canvas.addEventListener('mouseup', stop);
-                    canvas.addEventListener('mouseout', stop);
-
-                    canvas.addEventListener('touchstart', start, {passive: false});
-                    canvas.addEventListener('touchmove', draw, {passive: false});
-                    canvas.addEventListener('touchend', stop);
-
-                    document.getElementById('clearBtn').addEventListener('click', () => {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    });
-
-                    document.getElementById('resolveForm').addEventListener('submit', function(e) {
-                        // Kontrola, zda je podpis prázdný
-                        const blank = document.createElement('canvas');
-                        blank.width = canvas.width;
-                        blank.height = canvas.height;
-                        if (canvas.toDataURL() === blank.toDataURL()) {
-                            e.preventDefault();
-                            alert("Prosím, podepište formulář před uložením.");
-                            return false;
-                        }
-                        // Předání obrázku v Base64 do skrytého pole
-                        document.getElementById('signatureInput').value = canvas.toDataURL('image/png');
-                    });
-                </script>
             <?php else: ?>
                 <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb;">
                     <h3 style="margin-top: 0; color: #155724; display: flex; align-items: center; gap: 8px;">
@@ -234,8 +137,8 @@
                         <?php if (is_array($resPhotos) && count($resPhotos) > 0): ?>
                             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
                                 <?php foreach ($resPhotos as$rp): ?>
-                                    <?php $safeRp = htmlspecialchars($rp, ENT_QUOTES, 'UTF-8'); ?>
-                                    <a href="<?= $safeRp ?>" target="_blank"><img src="<?= $safeRp ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></a>
+                                    <?php $secureUrl = 'index.php?page=file&name=' . urlencode(basename($rp)); ?>
+                                    <a href="<?= $secureUrl ?>" target="_blank"><img src="<?= $secureUrl ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></a>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
@@ -250,8 +153,13 @@
                         <?php if (!empty($ticket['resolution_signature'])): ?>
                             <div style="text-align: right; flex-grow: 1;">
                                 <p style="color: var(--text-muted); font-size: 0.8em; margin: 0 0 2px 0;">Podpis:</p>
-                                <!-- BEZPEČNÝ VÝPIS PODPISU -->
-                                <img src="<?= htmlspecialchars($ticket['resolution_signature'], ENT_QUOTES, 'UTF-8') ?>" alt="Podpis technika" style="max-height: 50px; mix-blend-mode: multiply;">
+                                <?php 
+                                    $sigVal =$ticket['resolution_signature'];
+                                    $sigSrc = (strpos($sigVal, 'data:image/') === 0) 
+                                        ? htmlspecialchars($sigVal, ENT_QUOTES, 'UTF-8') 
+                                        : 'index.php?page=file&name=' . urlencode(basename($sigVal));
+                                ?>
+                                <img src="<?= $sigSrc ?>" alt="Podpis technika" style="max-height: 50px; mix-blend-mode: multiply;">
                             </div>
                         <?php endif; ?>
                     </div>

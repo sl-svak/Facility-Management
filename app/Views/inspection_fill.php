@@ -5,7 +5,7 @@ $schema = json_decode($template['schema_json'] ?? '[]', true);
 if (!is_array($schema)) { $schema = []; }
 ?>
 
-<!-- Externí knihovna pro konverzi HEIC z iPhonů (Zůstává pouze zde pro úsporu dat) -->
+<!-- Externí knihovna pro konverzi HEIC z iPhonů -->
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
 <div class="card card-primary-top" style="max-width: 800px; margin: 0 auto;">
@@ -28,10 +28,8 @@ if (!is_array($schema)) { $schema = []; }
         </div>
     <?php else: ?>
         
-        <!-- PŘIDÁNY DATA ATRIBUTY data-asset-id A data-template-id PRO JS AUTOSAVE -->
         <form method="POST" action="index.php?page=inspection_save" id="inspectionForm" data-asset-id="<?= $asset['id'] ?>" data-template-id="<?= $template['id'] ?>" onsubmit="return validateInspectionForm();">
             
-            <!-- OCHRANA CSRF -->
             <?= Security::csrfField() ?>
 
             <input type="hidden" name="asset_id" value="<?= $asset['id'] ?>">
@@ -93,17 +91,19 @@ if (!is_array($schema)) { $schema = []; }
 
                     <?php elseif ($fieldType === 'photo'): ?>
                         <div style="background: var(--card-bg); border: 1px dashed var(--border-color); border-radius: 4px; padding: 10px; text-align: center;">
-                            <div id="preview_<?= $index ?>" style="display: none; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 15px;"></div>
+                            <div id="preview_<?= $index ?>" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 15px;"></div>
+                            
                             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" data-field="<?= htmlspecialchars($fieldId) ?>" onclick="addPhotoInput(<?= $index ?>, this.dataset.field, 'camera')">
+                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addPhotoInput(<?= $index ?>, '<?= htmlspecialchars($fieldId) ?>', 'camera')">
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">photo_camera</span> Vyfotit
                                 </button>
-                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" data-field="<?= htmlspecialchars($fieldId) ?>" onclick="addPhotoInput(<?= $index ?>, this.dataset.field, 'gallery')">
+                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addPhotoInput(<?= $index ?>, '<?= htmlspecialchars($fieldId) ?>', 'gallery')">
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">photo_library</span> Z galerie
                                 </button>
                             </div>
                             <div id="loading_<?= $index ?>" style="display: none; color: var(--warning); font-size: 0.85em; margin-bottom: 10px;"><span class="material-symbols-outlined" style="vertical-align: middle; animation: spin 1.5s linear infinite;">sync</span> Zpracovávám (HEIC)...</div>
                             <div id="inputs_<?= $index ?>" style="display: none;"></div>
+                            
                             <input type="hidden" id="photoReq_<?= $index ?>" data-is-required="<?= $isRequired ? 'true' : 'false' ?>" data-label="<?= htmlspecialchars($fieldName) ?>">
                         </div>
 

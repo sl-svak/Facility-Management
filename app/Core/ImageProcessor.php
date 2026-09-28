@@ -1,90 +1,103 @@
 <?php
+// app/Core/ImageProcessor.php
 
 class ImageProcessor {
     
-    // Ochrana proti Pixel Flood útokům (Maximálně 20 Megapixelů, např. 5000x4000)
-    private static $MAX_PIXELS = 20000000;
+    /**
+     * Bezpečně zpracuje, ověří a uloží Base64 obrázek.
+     * 
+     * @param string $base64String Vstupní data z POST požadavku
+     * @param string $uploadDir Cílová složka pro uložení
+     * @return string|false Název uloženého souboru (např. 'img_6489...jpg') nebo false při chybě
+     */
+    public static function saveSecureBase64Image($base64String, $uploadDir = APP_ROOT . '/assets/uploads/') {
+        // 1. Ochrana prázdného vstupu
+        if (empty($base64String)) {
+            return false;
+        }
 
-    public static function processBase64($base64String, $uploadDir, $maxMb = 5) {
-        if (empty($base64String)) return null;
-
-        // 1. Kontrola formátu a extrakce dat
+        // 2. Rozdělení hlavičky a samotných dat (data:image/jpeg;base64,...)
         if (!preg_match('/^data:image\/(\w+);base64,/', $base64String, $type)) {
-            return null;
-        }
-        
-        $extension = strtolower($type[1]);
-        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])) {
-            return null;
+            error_log("ImageProcessor: Neplatný formát Base64 data URI.");
+            return false;
         }
 
-        $base64Data = substr($base64String, strpos($base64String, ',') + 1);
-        $decodedData = base64_decode($base64Data, true);
-        
-        if ($decodedData === false) return null;
+        // 3. Bezpečné dekódování dat
+        $data = substr($base64String, strpos($base64String, ',') + 1);
+        $decodedData = base64_decode($data, true);
 
-        // 2. OCHRANA: Velikost payloadu (v bajtech)
-        $maxBytes = $maxMb * 1024 * 1024;
-        if (strlen($decodedData) > $maxBytes) {
-            error_log("Zablokován velký soubor: " . strlen($decodedData) . " B");
-            return null;
+        if ($decodedData === false) {
+            error_log("ImageProcessor: Nepodařilo se dekódovat Base64 řetězec.");
+            return false;
         }
 
-        // 3. Rychlé zjištění rozměrů BEZ alokace obrazu do RAM
-        $imageInfo = @getimagesizefromstring($decodedData);
-        if (!$imageInfo) return null;
+        // 4. Striktní validace skutečného obsahu pomocí finfo (odhalí maskované skripty)
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->buffer($decodedData);
 
-        $width = $imageInfo[0];
-        $height = $imageInfo[1];
+        // Seznam povolených MIME typů a jejich odpovídajících přípon
+        $allowedMimeTypes = [
+            'image/jpeg' => 'jpg',
+            'image/png'  => 'png',
+            'image/gif'  => 'gif',
+            'image/webp' => 'webp'
+        ];
 
-        // 4. OCHRANA PROTI MEMORY DoS (Decompression Bomb)
-        $totalPixels = $width * $height;
-        if ($totalPixels > self::$MAX_PIXELS) {
-            error_log("Odmítnut útok Pixel Flood! Obrázek má $totalPixels pixelů.");
-            return null;
+        if (!array_key_exists($mimeType, $allowedMimeTypes)) {
+            error_log("ImageProcessor: Zablokován upload nepovoleného MIME typu: " . $mimeType);
+            return false;
         }
 
-        // -----------------------------------------------------------
-        // AŽ NYNÍ JE ZCELA BEZPEČNÉ ROZBALIT OBRÁZEK DO PAMĚTI RAM
-        // -----------------------------------------------------------
-        $img = @imagecreatefromstring($decodedData);
-        if (!$img) return null;
+        // 5. Vygenerování absolutně bezpečného a unikátního názvu souboru
+        $extension = $allowedMimeTypes[$mimeType];
+        $safeFilename = 'img_' . uniqid() . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+        $targetFile = rtrim($uploadDir, '/') . '/' . $safeFilename;
 
-        // 5. Automatický Resize (na max 1920x1080) pro úsporu místa na disku
-        $maxWidth = 1920;
-        $maxHeight = 1080;
-        
-        if ($width > $maxWidth || $height > $maxHeight) {
-            $ratio = min($maxWidth / $width, $maxHeight / $height);
-            $newWidth = (int)($width * $ratio);
-            $newHeight = (int)($height * $ratio);
-            
-            $newImg = imagecreatetruecolor($newWidth, $newHeight);
-            
-            // Zachování průhlednosti
-            if ($extension === 'png' || $extension === 'webp') {
-                imagealphablending($newImg, false);
-                imagesavealpha($newImg, true);
-                $transparent = imagecolorallocatealpha($newImg, 255, 255, 255, 127);
-                imagefilledrectangle($newImg, 0, 0, $newWidth, $newHeight, $transparent);
-            }
-
-            imagecopyresampled($newImg, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
-            imagedestroy($img);
-            $img = $newImg;
-        }
-
+        // Volitelně: Ujistíme se, že cílová složka existuje
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
 
-        // Vždy převádíme do moderního a bezpečného WebP formátu
-        $filename = 'img_' . uniqid() . '_' . bin2hex(random_bytes(4)) . '.webp';
-        $filepath = $uploadDir . $filename;
+        // 6. Uložení souboru na disk
+        if (file_put_contents($targetFile, $decodedData)) {
+            // Bezpečnostní vrstva navíc: překreslení obrázku přes GD knihovnu
+            // Toto zničí jakýkoliv škodlivý kód ukrytý v EXIF metadatech (tzv. Polyglot soubory)
+            self::recreateImage($targetFile, $mimeType);
+            
+            return $safeFilename;
+        }
 
-        imagewebp($img, $filepath, 80);
-        imagedestroy($img);
+        error_log("ImageProcessor: Nepodařilo se zapsat soubor na disk.");
+        return false;
+    }
 
-        return $filepath;
+    /**
+     * Načte a znovu uloží obrázek, čímž zničí skrytý malware v metadatech.
+     */
+    private static function recreateImage($filePath, $mimeType) {
+        $image = null;
+        switch ($mimeType) {
+            case 'image/jpeg': $image = @imagecreatefromjpeg($filePath); break;
+            case 'image/png':  $image = @imagecreatefrompng($filePath); break;
+            case 'image/gif':  $image = @imagecreatefromgif($filePath); break;
+            case 'image/webp': $image = @imagecreatefromwebp($filePath); break;
+        }
+
+        if ($image) {
+            // --- OPRAVA PRO PODPISY: Uložení průhlednosti (Alpha channel) ---
+            if ($mimeType === 'image/png' || $mimeType === 'image/webp') {
+                imagealphablending($image, false);
+                imagesavealpha($image, true);
+            }
+
+            // Přepíšeme původní soubor čistou verzí
+            switch ($mimeType) {
+                case 'image/jpeg': imagejpeg($image, $filePath, 90); break;
+                case 'image/png':  imagepng($image, $filePath); break;
+                case 'image/gif':  imagegif($image, $filePath); break;
+                case 'image/webp': imagewebp($image, $filePath, 90); break;
+            }
+            imagedestroy($image);
+        }
     }
 }

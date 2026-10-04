@@ -3,29 +3,34 @@ class RecordController {
     public static function index() {
         $pdo = Database::getConnection();
         
-        // Automatická oprava databáze (vytvoří sloupce pro podpis a fotky opravy, pokud chybí)
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_text TEXT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_signature TEXT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_photos TEXT NULL AFTER resolution_signature"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolved_by INT NULL"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP NULL"); } catch (Exception $e) {}
-        
         $filter_asset = isset($_GET['asset_id']) ? (int)$_GET['asset_id'] : 0;
         $filter_status = $_GET['status'] ?? '';
         
         $params = [];
-        $where = "1=1";
+        
+        // --- 1. CENTRÁLNÍ OCHRANA PŘÍSTUPU PRO VÝPIS ZÁZNAMŮ ---
+        // Získáme bezpečný filtr podle oprávnění uživatele k úsekům (alias 'a' pro assets)
+        $deptFilter = Auth::getDepartmentSqlFilter('a');
+        
+        // Místo původního "1=1" začínáme dotaz bezpečně vygenerovaným filtrem
+        $where = $deptFilter; 
         
         if ($filter_asset > 0) {
+            // BEZPEČNOSTNÍ POJISTKA: Ověříme, jestli se uživatel nesnaží podvrhnout GET parametr
+            if (!Auth::canAccessAsset($filter_asset)) {
+                http_response_code(403);
+                die("Přístup odepřen: Nemáte oprávnění prohlížet záznamy tohoto zařízení.");
+            }
+            
             $where .= " AND i.asset_id = ?";
             $params[] = $filter_asset;
         }
+        
         if ($filter_status !== '') {
             $where .= " AND i.status = ?";
             $params[] = $filter_status;
         }
         
-        // PŘIDÁNO tk.resolution_photos DO SQL DOTAZU
         $sql = "
             SELECT i.*, a.name as asset_name, t.title as template_name, 
                    u.first_name, u.last_name,
@@ -45,7 +50,15 @@ class RecordController {
         $stmt->execute($params);
         $inspections = $stmt->fetchAll();
         
-        $assets = $pdo->query("SELECT id, name FROM assets WHERE is_active = 1 ORDER BY name")->fetchAll();
+        // --- 2. FILTRACE ROLETKY PRO VÝBĚR ZAŘÍZENÍ ---
+        // Uživatel nesmí v roletce (filtru) vidět zařízení z cizích úseků
+        $assetDeptFilter = Auth::getDepartmentSqlFilter('assets');
+        $assets = $pdo->query("
+            SELECT id, name 
+            FROM assets 
+            WHERE is_active = 1 AND {$assetDeptFilter} 
+            ORDER BY name
+        ")->fetchAll();
         
         renderView('inspections', [
             'pageTitle' => 'Záznamy a revize',

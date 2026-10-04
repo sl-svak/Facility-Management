@@ -11,6 +11,9 @@
         </p>
         
         <form method="POST" action="index.php?page=department_create">
+            <!-- OCHRANA CSRF -->
+            <?= Security::csrfField() ?>
+            
             <label style="display: block; font-weight: bold; margin-bottom: 5px;">Název úseku *</label>
             <input type="text" name="name" required placeholder="např. Výroba - linka 1" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--card-bg); color: var(--text-main); margin-bottom: 15px; box-sizing: border-box;">
             

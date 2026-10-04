@@ -2,117 +2,237 @@
 
 class TicketController {
     
-    // 1. Výpis všech tiketů (závad)
+    /**
+     * Vypíše seznam závad s ohledem na oprávnění přihlášeného uživatele
+     */
     public static function index() {
         $pdo = Database::getConnection();
         
+        $deptFilter = Auth::getDepartmentSqlFilter('a');
+        $status = $_GET['status'] ?? 'open';
+        $statusCondition = ($status === 'open') ? "t.status = 'open'" : ($status === 'closed' ? "t.status = 'closed'" : "1=1");
+        
         $stmt = $pdo->query("
-            SELECT t.*, a.name as asset_name, i.created_at as inspection_date 
-            FROM tickets t 
-            JOIN assets a ON t.asset_id = a.id 
-            LEFT JOIN inspections i ON t.inspection_id = i.id 
-            ORDER BY FIELD(t.status, 'open', 'closed'), t.created_at DESC
+            SELECT t.*, a.name as asset_name
+            FROM tickets t
+            JOIN assets a ON t.asset_id = a.id
+            WHERE $statusCondition AND $deptFilter
+            ORDER BY t.created_at DESC
         ");
         $tickets = $stmt->fetchAll();
         
         renderView('tickets', [
-            'pageTitle' => 'Úkoly a hlášené závady', 
-            'tickets' => $tickets
+            'pageTitle' => 'Správa závad a úkolů',
+            'tickets' => $tickets,
+            'currentStatus' => $status
         ]);
     }
 
-    // 2. Zobrazení detailu závady a formuláře pro její vyřešení
-    public static function detail() {
-        $id = (int)($_GET['id'] ?? 0);
+    /**
+     * Formulář pro ruční vytvoření závady (např. z externího PDF protokolu)
+     */
+    public static function create() {
+        $asset_id = (int)($_GET['asset_id'] ?? 0);
+        $inspection_id = (int)($_GET['inspection_id'] ?? 0);
+
+        if ($asset_id > 0 && !Auth::canAccessAsset($asset_id)) {
+            http_response_code(403);
+            die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
+        }
+
         $pdo = Database::getConnection();
         
-        // ZAJIŠTĚNÍ EXISTENCE SLOUPCE PRO FOTKY OPRAVY (Automatická úprava databáze)
-        try {
-            $pdo->exec("ALTER TABLE tickets ADD COLUMN resolution_photos TEXT NULL AFTER resolution_signature");
-        } catch (PDOException $e) {
-            // Pokud už sloupec existuje, databáze hodí chybu, kterou můžeme v klidu ignorovat
+        $deptFilter = Auth::getDepartmentSqlFilter('assets');
+        $stmtAssets = $pdo->query("SELECT id, name FROM assets WHERE is_active = 1 AND $deptFilter ORDER BY name ASC");
+        $assets = $stmtAssets->fetchAll();
+
+        renderView('ticket_create', [
+            'pageTitle' => 'Nahlásit novou závadu',
+            'assets' => $assets,
+            'preselected_asset_id' => $asset_id,
+            'preselected_inspection_id' => $inspection_id
+        ]);
+    }
+
+    /**
+     * Zpracování uložení nové ruční závady (Bez sloupce created_by)
+     */
+    public static function store() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: index.php?page=tickets');
+            exit;
         }
+
+        $asset_id = (int)($_POST['asset_id'] ?? 0);
+        $inspection_id = !empty($_POST['inspection_id']) ? (int)$_POST['inspection_id'] : null;
+        $title = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
         
+        if (!$asset_id || empty($title)) {
+            http_response_code(400);
+            die("Chyba: Chybí povinná data (Zařízení nebo Název závady).");
+        }
+
+        if (!Auth::canAccessAsset($asset_id)) {
+            http_response_code(403);
+            die("Bezpečnostní chyba: Nemáte oprávnění zapisovat k tomuto zařízení.");
+        }
+
+        $pdo = Database::getConnection();
+        
+        // Zde byl odstraněn požadavek na created_by
         $stmt = $pdo->prepare("
-            SELECT t.*, a.name as asset_name, i.data_json, i.created_at as inspection_date,
-                   u.first_name, u.last_name,
-                   ru.first_name as res_first_name, ru.last_name as res_last_name
-            FROM tickets t 
-            JOIN assets a ON t.asset_id = a.id 
-            LEFT JOIN inspections i ON t.inspection_id = i.id 
-            LEFT JOIN users u ON i.technician_id = u.id
-            LEFT JOIN users ru ON t.resolved_by = ru.id
-            WHERE t.id = ?
+            INSERT INTO tickets (asset_id, inspection_id, title, status) 
+            VALUES (?, ?, ?, 'open')
         ");
-        $stmt->execute([$id]);
-        $ticket = $stmt->fetch();
         
-        if (!$ticket) {
+        $stmt->execute([
+            $asset_id, 
+            $inspection_id, 
+            $title . (!empty($description) ? ' - ' . $description : '')
+        ]);
+
+        if (isset($_POST['save_and_add'])) {
+            header("Location: index.php?page=ticket_create&asset_id={$asset_id}&inspection_id={$inspection_id}&success=1");
+        } else {
+            header("Location: index.php?page=tickets");
+        }
+        exit;
+    }
+
+    /**
+     * Zobrazí detail konkrétního tiketu (závady) - Vráceno na původní dotaz
+     */
+    public static function detail() {
+        if (empty($_GET['id'])) {
             header('Location: index.php?page=tickets');
             exit;
         }
         
+        $ticket_id = (int)$_GET['id'];
+        $pdo = Database::getConnection();
+        
+        // Zde byl odstraněn JOIN na cu (autor tiketu)
+        $stmt = $pdo->prepare("
+            SELECT t.*, a.name as asset_name,
+                   u.first_name, u.last_name,
+                   i.data_json, i.created_at as inspection_date,
+                   ru.first_name as res_first_name, ru.last_name as res_last_name
+            FROM tickets t
+            JOIN assets a ON t.asset_id = a.id
+            LEFT JOIN inspections i ON t.inspection_id = i.id
+            LEFT JOIN users u ON i.technician_id = u.id
+            LEFT JOIN users ru ON t.resolved_by = ru.id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$ticket_id]);
+        $ticket = $stmt->fetch();
+        
+        if (!$ticket) {
+            http_response_code(404);
+            die("Tiket nenalezen.");
+        }
+        
+        if (!Auth::canAccessAsset($ticket['asset_id'])) {
+            http_response_code(403);
+            die("Bezpečnostní chyba: Nemáte oprávnění k zobrazení tohoto zařízení a jeho tiketů.");
+        }
+        
         renderView('ticket_detail', [
-            'pageTitle' => 'Detail závady: ' . $ticket['asset_name'], 
+            'pageTitle' => 'Detail hlášení #' . $ticket['id'],
             'ticket' => $ticket
         ]);
     }
 
-    // 3. Uložení opravy (Podpis, poznámka a FOTOGRAFIE OPRAVY)
+    /**
+     * Zpracuje odeslaný formulář pro vyřešení závady
+     */
     public static function resolve() {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $ticket_id = (int)$_POST['ticket_id'];
-            $resolution_text = trim($_POST['resolution_text'] ?? '');
-            $signature = $_POST['resolution_signature'] ?? '';
-            $user_id = $_SESSION['user_id'];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: index.php?page=tickets');
+            exit;
+        }
+        
+        $ticket_id = (int)($_POST['ticket_id'] ?? 0);
+        $resolution_text = $_POST['resolution_text'] ?? '';
+        $signature = $_POST['resolution_signature'] ?? '';
+        
+        if (!$ticket_id || empty($resolution_text) || empty($signature)) {
+            http_response_code(400);
+            die("Chyba: Chybí povinná data (text řešení nebo podpis).");
+        }
+        
+        $pdo = Database::getConnection();
+        
+        $stmt = $pdo->prepare("SELECT asset_id, status FROM tickets WHERE id = ?");
+        $stmt->execute([$ticket_id]);
+        $ticket = $stmt->fetch();
+        
+        if (!$ticket) {
+            http_response_code(404);
+            die("Tiket nenalezen.");
+        }
+        
+        if (!Auth::canAccessAsset($ticket['asset_id'])) {
+            http_response_code(403);
+            die("Bezpečnostní chyba: Nemáte oprávnění k úpravě tohoto tiketu.");
+        }
+        
+        if ($ticket['status'] !== 'open') {
+            http_response_code(400);
+            die("Bezpečnostní chyba: Tento tiket je již uzavřen a nelze jej přepsat.");
+        }
+        
+        $savedPhotos = [];
+        if (!empty($_POST['resolution_photos_base64']) && is_array($_POST['resolution_photos_base64'])) {
+            require_once APP_ROOT . '/app/Core/ImageProcessor.php';
+            $uploadDir = APP_ROOT . '/assets/uploads';
             
-            if (empty($resolution_text) || empty($signature)) {
-                die("Chyba: Způsob opravy a podpis jsou povinné!");
-            }
-
-            // --- ZPRACOVÁNÍ FOTOGRAFIÍ OPRAVY (S KOMPRESÍ) ---
-            $uploadedPaths = [];
-            $uploadDir = 'assets/uploads/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
-            }
-
-            if (isset($_POST['resolution_photos_base64']) && is_array($_POST['resolution_photos_base64'])) {
-                foreach ($_POST['resolution_photos_base64'] as $i => $base64String) {
-                    if (preg_match('/^data:image\/(\w+);base64,/', $base64String, $type)) {
-                        $base64Data = substr($base64String, strpos($base64String, ',') + 1);
-                        $decodedData = base64_decode($base64Data);
-
-                        if ($decodedData !== false) {
-                            $newFilename = uniqid('oprava_') . '_' . $i . '_' . rand(1000, 9999) . '.jpg'; 
-                            $dest = $uploadDir . $newFilename;
-                            
-                            if (file_put_contents($dest, $decodedData)) {
-                                $uploadedPaths[] = $dest;
-                            }
-                        }
-                    }
+            $photosToProcess = array_slice($_POST['resolution_photos_base64'], 0, 5);
+            
+            foreach ($photosToProcess as $base64) {
+                $path = ImageProcessor::processBase64($base64, $uploadDir);
+                if ($path) {
+                    $savedPhotos[] = 'assets/uploads/' . basename($path);
                 }
             }
-            
-            $photosJson = !empty($uploadedPaths) ? json_encode($uploadedPaths, JSON_UNESCAPED_UNICODE) : null;
-            // ----------------------------------------
-            
-            $pdo = Database::getConnection();
-            $stmt = $pdo->prepare("
+        }
+        
+        $photosJson = !empty($savedPhotos) ? json_encode($savedPhotos) : null;
+        
+        try {
+            $pdo->beginTransaction();
+
+            $update = $pdo->prepare("
                 UPDATE tickets 
                 SET status = 'closed', 
                     resolution_text = ?, 
                     resolution_signature = ?, 
-                    resolution_photos = ?,
-                    resolved_at = NOW(), 
-                    resolved_by = ?
+                    resolution_photos = ?, 
+                    resolved_by = ?, 
+                    resolved_at = NOW() 
                 WHERE id = ?
             ");
-            $stmt->execute([$resolution_text, $signature, $photosJson, $user_id, $ticket_id]);
             
-            header('Location: index.php?page=tickets&resolved=1');
-            exit;
+            $update->execute([
+                $resolution_text,
+                $signature,
+                $photosJson,
+                $_SESSION['user_id'],
+                $ticket_id
+            ]);
+
+            // Bezpečnostní oprava: Pokud bylo zařízení odstaveno, vrátíme ho do provozu
+            $pdo->prepare("UPDATE assets SET operational_status = 'running' WHERE id = ?")->execute([$ticket['asset_id']]);
+
+            $pdo->commit();
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            http_response_code(500);
+            die("Chyba při ukládání řešení závady.");
         }
+        
+        header('Location: index.php?page=ticket_detail&id=' . $ticket_id);
+        exit;
     }
 }

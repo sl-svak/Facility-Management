@@ -8,6 +8,12 @@
  * 3. Soubor 'config.php' je chráněn a nikdy jej nenahrávejte na veřejný Git
  */
 
+// Ochrana proti přímému přístupu
+if (!defined('APP_ROOT')) {
+    http_response_code(403);
+    exit('Přímý přístup není povolen.');
+}
+
 // --- DATABÁZOVÉ PŘIPOJENÍ ---
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'nazev_vasi_databaze');

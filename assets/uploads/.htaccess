@@ -1,4 +1,34 @@
-<FilesMatch "\.(php|php3|php4|php5|php7|phtml|pl|py|jsp|asp|sh|cgi)$">
+# ==============================================================================
+# 1. ZÁKAZ VÝPISU SLOŽKY A SPOUŠTĚNÍ CGI
+# ==============================================================================
+Options -Indexes -ExecCGI
+
+# ==============================================================================
+# 2. ZÁKAZ PŘÍMÉHO PŘÍSTUPU K SOUBORŮM
+# ==============================================================================
+# Všechny soubory se musí stahovat/zobrazovat výhradně přes FileController v PHP.
+# Tímto se zamezí přímému stažení z prohlížeče a obejití kontroly přístupu.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
     Order Deny,Allow
-    Deny from All
-</FilesMatch>
+    Deny from all
+</IfModule>
+
+# ==============================================================================
+# 3. OBRANA DO HLOUBKY: Vypnutí PHP enginu
+# ==============================================================================
+# Pokud by náhodou selhal zákaz přístupu výše (např. při chybné konfiguraci 
+# Apache), toto zajistí, že se nahraný PHP soubor stáhne jako čistý text 
+# a nikdy se nespustí.
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# Odstranění handlerů pro spustitelné typy souborů
+RemoveHandler .phtml .php .php3 .php4 .php5 .php6 .phps .cgi .exe .pl .asp .aspx .shtml .shtm .fcgi .fpl .jsp .htm .html .wml
+AddType application/x-httpd-php-source .php .phtml

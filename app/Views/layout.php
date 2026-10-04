@@ -4,7 +4,7 @@ $globalAppName = SettingModel::get('app_name', 'CMMS Cosmonde');
 $globalFavicon = SettingModel::get('favicon_path', '');
 $globalAppFont = SettingModel::get('app_font', 'default'); 
 
-// 1. NAČTENÍ UŽIVATELSKÝCH PREFERENCÍ
+// 1. NAČTENÍ UŽIVATELSKÝch PREFERENCÍ
 $userPrefs = ['theme' => 'auto', 'font_size' => 'normal', 'qr_mode' => 'auto'];
 if (isset($_SESSION['user_id'])) {
     if (!isset($_SESSION['theme'])) {
@@ -24,6 +24,14 @@ if (isset($_SESSION['user_id'])) {
     $userPrefs['font_size'] = $_SESSION['font_size'] ?? 'normal';
     $userPrefs['qr_mode'] = $_SESSION['qr_mode'] ?? 'auto';
 }
+
+// Generování CSS tříd pro body tag podle preferencí uživatele
+$bodyClasses = [];
+if ($userPrefs['theme'] === 'light') $bodyClasses[] = 'theme-light';
+if ($userPrefs['theme'] === 'dark') $bodyClasses[] = 'theme-dark';
+if ($userPrefs['font_size'] === 'large') $bodyClasses[] = 'font-large';
+if ($userPrefs['qr_mode'] === 'auto') $bodyClasses[] = 'qr-auto';
+$bodyClassString = implode(' ', $bodyClasses);
 ?>
 <!DOCTYPE html>
 <html lang="cs">
@@ -40,50 +48,8 @@ if (isset($_SESSION['user_id'])) {
     
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime('assets/css/style.css') ?>">
-
-    <!-- 2. APLIKACE UŽIVATELSKÝCH PREFERENCÍ (CSS) -->
-    <style>
-        /* Zvětšení písma pro mobily */
-        <?php if ($userPrefs['font_size'] === 'large'): ?>
-        @media screen and (max-width: 768px) {
-            body, input, select, button, textarea, .table { font-size: 16px !important; }
-        }
-        <?php endif; ?>
-        
-        /* Vynucený světlý režim (přepisuje tmavý systém telefonu) */
-        <?php if ($userPrefs['theme'] === 'light'): ?>
-        :root {
-            --primary: #2c3e50 !important;
-            --background: #f4f7f6 !important;
-            --card-bg: #ffffff !important;
-            --text-main: #333333 !important;
-            --text-muted: #666666 !important;
-            --border-color: #eeeeee !important;
-        }
-        input, select, textarea { background-color: #fff !important; color: #000 !important; border: 1px solid #ccc !important; }
-        .table th { background: rgba(0,0,0,0.02) !important; }
-        
-        /* Vynucený tmavý režim */
-        <?php elseif ($userPrefs['theme'] === 'dark'): ?>
-        :root {
-            --primary: #34495e !important;
-            --background: #121212 !important;
-            --card-bg: #1e1e1e !important;
-            --text-main: #e0e0e0 !important;
-            --text-muted: #aaaaaa !important;
-            --border-color: #333333 !important;
-        }
-        input, select, textarea { background-color: #2a2a2a !important; color: #e0e0e0 !important; border: 1px solid #444 !important; }
-        .table th { background: #252525 !important; }
-        <?php endif; ?>
-        
-        /* Logika zobrazení QR čtečky */
-        <?php if ($userPrefs['qr_mode'] === 'auto'): ?>
-        @media (min-width: 1024px) and (pointer: fine) { .qr-menu-item { display: none !important; } }
-        <?php endif; ?>
-    </style>
 </head>
-<body>
+<body class="<?= htmlspecialchars($bodyClassString) ?>">
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div style="display: flex; align-items: center;">
@@ -99,7 +65,7 @@ if (isset($_SESSION['user_id'])) {
             <li><a href="index.php?page=dashboard" class="<?= (!isset($_GET['page']) || $_GET['page'] === 'dashboard') ? 'active' : '' ?>"><span class="material-symbols-outlined">dashboard</span> <span class="text">Dashboard</span></a></li>
             
             <?php if ($userPrefs['qr_mode'] !== 'hide'): ?>
-                <li class="<?= $userPrefs['qr_mode'] === 'auto' ? 'qr-menu-item' : '' ?>">
+                <li class="qr-menu-item">
                     <a href="index.php?page=qr_reader" class="<?= (isset($_GET['page']) && $_GET['page'] === 'qr_reader') ? 'active' : '' ?>"><span class="material-symbols-outlined">qr_code_scanner</span> <span class="text">Čtečka QR kódů</span></a>
                 </li>
             <?php endif; ?>
@@ -155,31 +121,7 @@ if (isset($_SESSION['user_id'])) {
         </div>
     </main>
 
-    <!-- Ochrana proti dvojitému odeslání a úprava pro PDF reporty -->
-    <script>
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            const btn = this.querySelector('button[type="submit"]');
-            if (btn) {
-                const originalText = btn.innerHTML;
-                
-                // Mírné zpoždění zajistí bezpečné odeslání dat
-                setTimeout(() => {
-                    btn.disabled = true;
-                    btn.innerHTML = '<span class="material-symbols-outlined" style="vertical-align: middle;">autorenew</span> Ukládám...';
-                    
-                    // Pokud formulář generuje report (PDF), za 3 vteřiny tlačítko odemkneme
-                    if (this.action.includes('report') || this.action.includes('export')) {
-                        setTimeout(() => {
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                        }, 3000);
-                    }
-                }, 10);
-            }
-        });
-    });
-    </script>
-    <script src="assets/js/app.js"></script>
+    <!-- PŘIDÁNO: Načtení globálního JavaScriptu pro celý systém -->
+    <script src="assets/js/app.js?v=<?= filemtime('assets/js/app.js') ?>"></script>
 </body>
 </html>

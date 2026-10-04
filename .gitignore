@@ -7,3 +7,7 @@ assets/uploads/
 # Systémové soubory
 .DS_Store
 Thumbs.db
+config/config.php
+*~
+config/config.php
+*~

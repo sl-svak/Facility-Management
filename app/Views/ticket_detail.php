@@ -1,265 +1,198 @@
 <?php if (!defined('APP_ROOT')) exit; ?>
 
-<div style="max-width: 800px; margin: 0 auto;">
-    
-    <!-- TLAČÍTKO ZPĚT -->
-    <div style="margin-bottom: 20px;">
-        <a href="index.php?page=tickets" class="btn" style="background: #95a5a6; text-decoration: none;">
-            <span class="material-symbols-outlined" style="vertical-align: middle;">arrow_back</span> Zpět na seznam závad
-        </a>
-    </div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2><?= htmlspecialchars($pageTitle) ?></h2>
+    <a href="index.php?page=tickets" class="btn" style="background: #7f8c8d;">Zpět na seznam</a>
+</div>
 
-    <!-- HLAVIČKA ZÁVADY -->
-    <div class="card" style="border-top: 4px solid <?= $ticket['status'] === 'open' ? 'var(--danger)' : 'var(--success)' ?>;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
-            <div>
-                <h2 style="margin: 0 0 10px 0; color: #2c3e50;">
-                    <?= htmlspecialchars($ticket['title']) ?>
-                </h2>
-                <div style="color: #7f8c8d; font-size: 0.95em;">
-                    <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.2em;">precision_manufacturing</span> 
-                    <strong>Stroj:</strong> <?= htmlspecialchars($ticket['asset_name']) ?><br>
-                    
-                    <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.2em;">person</span> 
-                    <strong>Nahlásil:</strong> <?= htmlspecialchars($ticket['first_name'] . ' ' . $ticket['last_name']) ?> 
-                    (<?= date('d.m.Y H:i', strtotime($ticket['created_at'])) ?>)
-                </div>
-            </div>
-            <div>
-                <?php if ($ticket['status'] === 'open'): ?>
-                    <span class="badge badge-open" style="font-size: 1.1em; padding: 8px 15px;">K ŘEŠENÍ</span>
-                <?php else: ?>
-                    <span class="badge badge-closed" style="font-size: 1.1em; padding: 8px 15px;">VYŘEŠENO</span>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <hr style="border: 0; border-top: 1px solid #ecf0f1; margin: 20px 0;">
-
-        <!-- VÝPIS DAT Z KONTROLY -->
-        <h4 style="margin-top: 0; color: #34495e;">Naměřené hodnoty z kontroly:</h4>
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef;">
-            <?php 
-                $data = json_decode($ticket['data_json'], true);
-                if (is_array($data)): 
-                    foreach($data as $key => $val):
-                        if (is_array($val) && isset($val[0]) && strpos((string)$val[0], 'assets/uploads/') === 0): ?>
-                            <div style="margin-bottom: 10px;">
-                                <strong><?= htmlspecialchars($key) ?>:</strong><br>
-                                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px;">
-                                    <?php foreach($val as $photo): ?>
-                                        <a href="<?= $photo ?>" target="_blank">
-                                            <img src="<?= $photo ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                                        </a>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                        <?php elseif (is_string($val) && strpos($val, 'assets/uploads/') === 0): ?>
-                            <div style="margin-bottom: 10px;">
-                                <strong><?= htmlspecialchars($key) ?>:</strong><br>
-                                <a href="<?= $val ?>" target="_blank"><img src="<?= $val ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc;"></a>
-                            </div>
-                        <?php elseif (is_string($val) && strpos($val, 'data:image/') === 0): ?>
-                            <div style="margin-bottom: 10px;">
-                                <strong><?= htmlspecialchars($key) ?>:</strong><br>
-                                <img src="<?= $val ?>" style="max-height: 50px; mix-blend-mode: multiply;">
-                            </div>
-                        <?php else: 
-                            if (is_array($val)) $val = json_encode($val);
-                            $color = ($val === 'KO' || $val === 'Ne') ? 'var(--danger)' : (($val === 'OK' || $val === 'Ano') ? 'var(--success)' : '#2c3e50');
-                        ?>
-                            <div style="margin-bottom: 8px; border-bottom: 1px dashed #ddd; padding-bottom: 4px;">
-                                <strong style="color: #7f8c8d;"><?= htmlspecialchars($key) ?>:</strong> 
-                                <span style="color: <?= $color ?>; font-weight: bold; float: right;"><?= htmlspecialchars((string)$val) ?></span>
-                            </div>
-                        <?php endif;
-                    endforeach;
-                else:
-                    echo "<i>Žádná detailní data nejsou k dispozici.</i>";
-                endif;
-            ?>
-        </div>
-    </div>
-
-    <!-- FORMULÁŘ PRO UZAVŘENÍ NEBO ZOBRAZENÍ ŘEŠENÍ -->
-    <?php if ($ticket['status'] === 'open'): ?>
+<div class="card">
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
         
-        <div class="card" style="background: #eaf2f8; border: 1px solid #3498db;">
-            <h3 style="margin-top: 0; color: #2980b9;">Vyřešení závady</h3>
-            <form method="POST" action="index.php?page=ticket_resolve" onsubmit="return validateResolution();">
-                <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
-                
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px; color: #2c3e50;">Způsob opravy a vyměněné díly *</label>
-                    <textarea name="resolution_text" id="resolution_text" required placeholder="Popište, jak byla závada odstraněna..." style="width: 100%; min-height: 120px; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-family: inherit; box-sizing: border-box;"></textarea>
-                </div>
+        <!-- Levý sloupec: Informace o závadě -->
+        <div style="flex: 1; min-width: 300px;">
+            <h3 style="margin-top: 0; color: var(--primary);">Informace o hlášení</h3>
+            <table class="table">
+                <tr>
+                    <td style="width: 150px; color: var(--text-muted);">Založeno:</td>
+                    <td><strong><?= date('d.m.Y H:i', strtotime($ticket['created_at'])) ?></strong></td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-muted);">Zařízení:</td>
+                    <td><strong><?= htmlspecialchars($ticket['asset_name']) ?></strong></td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-muted);">Popis závady:</td>
+                    <td style="color: var(--danger); font-weight: bold;"><?= htmlspecialchars($ticket['title']) ?></td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-muted);">Stav:</td>
+                    <td>
+                        <?php if ($ticket['status'] === 'open'): ?>
+                            <span class="badge badge-open">K ŘEŠENÍ (Otevřeno)</span>
+                        <?php else: ?>
+                            <span class="badge badge-closed">VYŘEŠENO (Uzavřeno)</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            </table>
 
-                <!-- PŘIDÁNÍ FOTOGRAFIÍ OPRAVY -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px; color: #2c3e50;">Fotodokumentace po opravě (volitelné)</label>
-                    <div style="background: #fff; border: 1px dashed #95a5a6; border-radius: 6px; padding: 10px; text-align: center;">
-                        <div id="preview_resolution" style="display: none; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 15px;"></div>
-                        <button type="button" class="btn" style="background: #e67e22; color: #fff; padding: 10px 20px; font-weight: bold;" onclick="addResolutionPhoto()">
-                            <span class="material-symbols-outlined" style="vertical-align: middle;">add_a_photo</span> Vyfotit výsledek opravy
-                        </button>
-                        <div id="inputs_resolution" style="display: none;"></div>
+            <?php if (!empty($ticket['inspection_id'])): ?>
+                <h4 style="margin-top: 25px;">Údaje z revize, která závadu odhalila</h4>
+                <div style="background: #fafafa; padding: 15px; border-radius: 4px; border: 1px solid #eee; font-size: 0.9em;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>Kontroloval:</strong> <?= htmlspecialchars($ticket['first_name'] . ' ' .$ticket['last_name']) ?> <br>
+                        <strong>Kdy:</strong> <?= date('d.m.Y H:i', strtotime($ticket['inspection_date'])) ?>
                     </div>
-                </div>
-
-                <!-- NOVÝ, LÉPE KONTRASTNÍ BLOK PRO PODPIS -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px; color: #2c3e50;">Podpis opraváře *</label>
-                    
-                    <div style="background: rgba(0,0,0,0.03); border: 1px solid #bdc3c7; border-radius: 6px; padding: 15px; text-align: center;">
+                    <?php 
+                        $data = json_decode($ticket['data_json'], true);
                         
-                        <span style="display: block; margin-bottom: 10px; font-size: 0.85em; color: #7f8c8d; text-transform: uppercase; font-weight: bold;">
-                            Nakreslete podpis do bílého pole níže ↓
-                        </span>
-                        
-                        <canvas id="sigCanvas" width="400" height="150" style="background: #ffffff; border: 2px dashed #3498db; border-radius: 4px; cursor: crosshair; touch-action: none; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin: 0 auto;"></canvas>
-                        
-                        <input type="hidden" name="resolution_signature" id="sigInput">
-                        
-                        <br>
-                        
-                        <button type="button" onclick="clearSignature()" class="btn" style="margin-top: 15px; background: #e2e8f0; color: #475569; border: 1px solid #cbd5e1; padding: 8px 15px;">
-                            <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.2em;">ink_eraser</span> Vymazat podpis
-                        </button>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 1.1em; background: #27ae60; border-color: #27ae60;">
-                    <span class="material-symbols-outlined" style="vertical-align: middle;">verified</span> Závada je opravena - Uzavřít tiket
-                </button>
-            </form>
-        </div>
-
-        <script>
-            // --- KOMPRESE FOTEK OPRAVY ---
-            function addResolutionPhoto() {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.accept = 'image/*';
-                fileInput.multiple = true; 
-                
-                fileInput.onchange = function() {
-                    if (this.files && this.files.length > 0) {
-                        const previewContainer = document.getElementById('preview_resolution');
-                        const inputsContainer = document.getElementById('inputs_resolution');
-                        previewContainer.style.display = 'flex';
-                        
-                        for(let i=0; i < this.files.length; i++) {
-                            const reader = new FileReader();
-                            reader.onload = function(e) {
-                                const img = new Image();
-                                img.onload = function() {
-                                    const canvas = document.createElement('canvas');
-                                    const ctx = canvas.getContext('2d');
-                                    let width = img.width; let height = img.height; const MAX_DIM = 1200;
-
-                                    if (width > height) { if (width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; } } 
-                                    else { if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; } }
-
-                                    canvas.width = width; canvas.height = height;
-                                    ctx.drawImage(img, 0, 0, width, height);
-                                    
-                                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                                    
-                                    const previewImg = document.createElement('img');
-                                    previewImg.src = dataUrl;
-                                    previewImg.style.height = '100px';
-                                    previewImg.style.borderRadius = '4px';
-                                    previewImg.style.border = '1px solid #ccc';
-                                    previewImg.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                                    previewContainer.appendChild(previewImg);
-                                    
-                                    const hiddenInp = document.createElement('input');
-                                    hiddenInp.type = 'hidden';
-                                    hiddenInp.name = 'resolution_photos_base64[]';
-                                    hiddenInp.value = dataUrl;
-                                    inputsContainer.appendChild(hiddenInp);
-                                };
-                                img.src = e.target.result;
-                            };
-                            reader.readAsDataURL(this.files[i]);
+                        // --- MAPOVÁNÍ KÓDŮ NA HEZKÉ NÁZVY ---
+                        $schema = json_decode($ticket['schema_json'] ?? '[]', true);
+                        $labelMap = [];
+                        if (is_array($schema)) {
+                            foreach ($schema as $field) {
+                                $fId = $field['id'] ?? $field['label'];
+                                $labelMap[$fId] = $field['label'] ?? $fId;
+                            }
                         }
-                    }
-                };
-                fileInput.click(); 
-            }
+                        // ------------------------------------
 
-            // --- PODPIS OPRAVÁŘE ---
-            const canvas = document.getElementById('sigCanvas');
-            const ctx = canvas.getContext('2d');
-            ctx.strokeStyle = '#0000cd'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            let drawing = false;
+                        if (is_array($data)) {
+                            foreach($data as $key => $val) {
+                                // Překlad klíče přes mapu, pokud neexistuje, použije se původní klíč
+                                $displayLabel = $labelMap[$key] ?? $key;
+                                $safeKey = htmlspecialchars($displayLabel, ENT_QUOTES, 'UTF-8');
+                                
+                                // Detekce Base64, starých cest a nových názvů souborů z ImageProcessor
+                                $isBase64 = is_string($val) && strpos($val, 'data:image/') === 0;
+                                $isFilePath = is_string($val) && (strpos($val, 'assets/uploads/') === 0 || preg_match('/^img_.*?\.(png|jpe?g|gif|webp)$/i', $val));
+                                $isImgArray = is_array($val) && isset($val[0]) && is_string($val[0]) && (strpos($val[0], 'assets/uploads/') === 0 || preg_match('/^img_.*?\.(png|jpe?g|gif|webp)$/i', $val[0]));
 
-            const getPos = (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
-            };
-
-            const start = (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); e.preventDefault(); };
-            const move = (e) => { if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); };
-            const stop = () => { if (drawing) { drawing = false; document.getElementById('sigInput').value = canvas.toDataURL(); } };
-
-            canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', stop);
-            canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); window.addEventListener('touchend', stop);
-
-            function clearSignature() { ctx.clearRect(0, 0, canvas.width, canvas.height); document.getElementById('sigInput').value = ''; }
-
-            function validateResolution() {
-                if (document.getElementById('sigInput').value.trim() === '') {
-                    alert('Pro uzavření závady je nutné připojit Váš podpis!');
-                    return false;
-                }
-                return true;
-            }
-        </script>
-
-    <?php else: ?>
-        
-        <!-- HOTOVÝ TIKET: Zobrazení řešení -->
-        <div class="card" style="background: #eafaf1; border: 1px solid #2ecc71;">
-            <h3 style="margin-top: 0; color: #27ae60;">
-                <span class="material-symbols-outlined" style="vertical-align: middle;">check_circle</span> Zpráva o opravě
-            </h3>
-            
-            <p style="color: #2c3e50; font-size: 1.05em; font-style: italic; background: #fff; padding: 15px; border-radius: 6px; border: 1px solid #d4efdf;">
-                "<?= nl2br(htmlspecialchars($ticket['resolution_text'])) ?>"
-            </p>
-
-            <!-- VYKRESLENÍ FOTOGRAFIÍ OPRAVY -->
-            <?php 
-            if (!empty($ticket['resolution_photos'])) {
-                $resPhotos = json_decode($ticket['resolution_photos'], true);
-                if (is_array($resPhotos) && count($resPhotos) > 0) {
-                    echo '<div style="margin: 15px 0;"><strong>Fotografie po opravě:</strong><br><div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px;">';
-                    foreach ($resPhotos as $rPhoto) {
-                        echo '<a href="'.$rPhoto.'" target="_blank"><img src="'.$rPhoto.'" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></a>';
-                    }
-                    echo '</div></div>';
-                }
-            }
-            ?>
-
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; flex-wrap: wrap; gap: 15px;">
-                <div style="color: #7f8c8d; font-size: 0.95em;">
-                    <strong>Opravu provedl:</strong> <?= htmlspecialchars($ticket['res_first_name'] . ' ' . $ticket['res_last_name']) ?><br>
-                    <strong>Datum uzavření:</strong> <?= date('d.m.Y H:i', strtotime($ticket['resolved_at'])) ?>
+                                if ($isBase64) {
+                                    $safeVal = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
+                                    echo "<div style='margin-bottom: 5px;'><strong>{$safeKey}:</strong><br> <img src='{$safeVal}' style='max-height: 40px; mix-blend-mode: multiply;'></div>";
+                                } 
+                                elseif ($isImgArray) {
+                                    echo "<div style='margin-bottom: 5px;'><strong>{$safeKey}:</strong><br>";
+                                    foreach($val as $photo) {
+                                        $safePhotoName = basename($photo);
+                                        if ($safePhotoName !== '' && file_exists(APP_ROOT . '/assets/uploads/' . $safePhotoName)) {
+                                            $secureUrl = 'index.php?page=file&name=' . urlencode($safePhotoName);
+                                            $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                            echo "<a href='{$safeSecureUrl}' target='_blank'><img src='{$safeSecureUrl}' style='max-height: 60px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc;'></a>";
+                                        }
+                                    }
+                                    echo "</div>";
+                                }
+                                elseif ($isFilePath) {
+                                    $safePhotoName = basename($val);
+                                    if ($safePhotoName !== '' && file_exists(APP_ROOT . '/assets/uploads/' . $safePhotoName)) {
+                                        $secureUrl = 'index.php?page=file&name=' . urlencode($safePhotoName);
+                                        $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                        echo "<div style='margin-bottom: 5px;'><strong>{$safeKey}:</strong><br> <a href='{$safeSecureUrl}' target='_blank'><img src='{$safeSecureUrl}' style='max-height: 40px; mix-blend-mode: multiply;'></a></div>";
+                                    }
+                                }
+                                else {
+                                    if (is_array($val)) $val = json_encode($val, JSON_UNESCAPED_UNICODE);
+                                    $color = ($val === 'KO') ? 'var(--danger)' : 'var(--text-main)';
+                                    echo "<div style='margin-bottom: 3px;'><strong>{$safeKey}:</strong> <span style='color: {$color};'>" . htmlspecialchars((string)$val, ENT_QUOTES, 'UTF-8') . "</span></div>";
+                                }
+                            }
+                        }
+                    ?>
                 </div>
-                
-                <?php if (!empty($ticket['resolution_signature'])): ?>
-                    <div style="text-align: right;">
-                        <span style="font-size: 0.8em; color: #95a5a6; display: block; margin-bottom: 5px;">Podpis opraváře:</span>
-                        <img src="<?= $ticket['resolution_signature'] ?>" style="max-height: 60px; mix-blend-mode: multiply; border-bottom: 1px solid #bdc3c7;">
-                    </div>
-                <?php endif; ?>
-            </div>
+            <?php endif; ?>
         </div>
 
-    <?php endif; ?>
+        <!-- Pravý sloupec: Řešení / Formulář -->
+        <div style="flex: 1; min-width: 300px;">
+            <?php if ($ticket['status'] === 'open'): ?>
+                <div style="background: #e8f4f8; padding: 20px; border-radius: 8px; border: 1px solid #bce0ee;">
+                    <h3 style="margin-top: 0; color: #2980b9;">Vyřešit závadu</h3>
+                    
+                    <form method="POST" action="index.php?page=ticket_resolve" id="resolveForm" onsubmit="return validateResolution();">
+                        <?= Security::csrfField() ?>
+                        <input type="hidden" name="ticket_id" value="<?= htmlspecialchars($ticket['id'], ENT_QUOTES, 'UTF-8') ?>">
+                        
+                        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Způsob opravy (Poznámka)</label>
+                        <textarea name="resolution_text" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px;" required placeholder="Popište, jak byla závada odstraněna..."></textarea>
+                        
+                        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Fotografie opravy (Volitelné)</label>
+                        
+                        <div style="background: #fff; border: 1px dashed #ccc; border-radius: 4px; padding: 10px; text-align: center; margin-bottom: 15px;">
+                            <div id="photoPreview" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px;"></div>
+                            
+                            <div style="display: flex; gap: 10px;">
+                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addResolutionPhoto('camera')">
+                                    <span class="material-symbols-outlined" style="vertical-align: middle;">photo_camera</span> Vyfotit
+                                </button>
+                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addResolutionPhoto('gallery')">
+                                    <span class="material-symbols-outlined" style="vertical-align: middle;">photo_library</span> Z galerie
+                                </button>
+                            </div>
+                            
+                            <div id="hiddenPhotoInputs"></div>
+                        </div>
+
+                        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Podpis technika</label>
+                        <div style="border: 1px solid #ccc; background: #fff; border-radius: 4px; margin-bottom: 10px;">
+                            <canvas id="signatureCanvas" width="350" height="150" style="width: 100%; touch-action: none; cursor: crosshair;"></canvas>
+                        </div>
+                        <button type="button" class="btn" onclick="clearSignature()" style="background: #95a5a6; padding: 6px 12px; font-size: 0.9em; margin-bottom: 15px;">Vymazat podpis</button>
+                        
+                        <input type="hidden" name="resolution_signature" id="signatureInput">
+                        
+                        <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.1em; padding: 12px; background: #27ae60;">Uložit opravu a uzavřít tiket</button>
+                    </form>
+                </div>
+            <?php else: ?>
+                <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb;">
+                    <h3 style="margin-top: 0; color: #155724; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-symbols-outlined">check_circle</span> Údaje o vyřešení
+                    </h3>
+                    
+                    <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 5px;">Způsob opravy:</p>
+                    <div style="font-size: 1.1em; margin-bottom: 20px; font-style: italic;">
+                        "<?= nl2br(htmlspecialchars($ticket['resolution_text'], ENT_QUOTES, 'UTF-8')) ?>"
+                    </div>
+                    
+                    <?php if (!empty($ticket['resolution_photos'])): ?>
+                        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 5px;">Fotografie z opravy:</p>
+                        <?php $resPhotos = json_decode($ticket['resolution_photos'], true); ?>
+                        <?php if (is_array($resPhotos) && count($resPhotos) > 0): ?>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                                <?php foreach ($resPhotos as $rp): ?>
+                                    <?php 
+                                        $secureUrl = 'index.php?page=file&name=' . urlencode(basename($rp)); 
+                                        $safeSecureUrl = htmlspecialchars($secureUrl, ENT_QUOTES, 'UTF-8');
+                                    ?>
+                                    <a href="<?= $safeSecureUrl ?>" target="_blank"><img src="<?= $safeSecureUrl ?>" style="max-height: 100px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></a>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <div style="display: flex; gap: 20px; border-top: 1px solid #c3e6cb; padding-top: 15px; align-items: center;">
+                        <div>
+                            <p style="color: var(--text-muted); font-size: 0.9em; margin: 0 0 5px 0;">Odpovědný technik:</p>
+                            <strong><?= htmlspecialchars($ticket['res_first_name'] . ' ' .$ticket['res_last_name']) ?></strong><br>
+                            <span style="font-size: 0.85em; color: var(--text-muted);"><?= date('d.m.Y H:i', strtotime($ticket['resolved_at'])) ?></span>
+                        </div>
+                        <?php if (!empty($ticket['resolution_signature'])): ?>
+                            <div style="text-align: right; flex-grow: 1;">
+                                <p style="color: var(--text-muted); font-size: 0.8em; margin: 0 0 2px 0;">Podpis:</p>
+                                <?php 
+                                    $sigVal = $ticket['resolution_signature'];
+                                    $sigSrc = (strpos($sigVal, 'data:image/') === 0) 
+                                        ? htmlspecialchars($sigVal, ENT_QUOTES, 'UTF-8') 
+                                        : htmlspecialchars('index.php?page=file&name=' . urlencode(basename($sigVal)), ENT_QUOTES, 'UTF-8');
+                                ?>
+                                <img src="<?= $sigSrc ?>" alt="Podpis technika" style="max-height: 50px; mix-blend-mode: multiply;">
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
 </div>

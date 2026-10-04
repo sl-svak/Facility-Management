@@ -55,8 +55,11 @@ class UserController {
             $_SESSION['profile_error'] = 'Nová hesla se neshodují.';
             header('Location: index.php?page=profile' . $redirectSuffix); exit;
         }
-        if (strlen($newPassword) < 6) {
-            $_SESSION['profile_error'] = 'Nové heslo musí mít alespoň 6 znaků.';
+        
+        // BEZPEČNOSTNÍ OPRAVA: Napojení na centrální bezpečnostní politiku hesel z Auth.php
+        $policyCheck = Auth::validatePasswordPolicy($newPassword);
+        if ($policyCheck !== true) {
+            $_SESSION['profile_error'] = $policyCheck;
             header('Location: index.php?page=profile' . $redirectSuffix); exit;
         }
 
@@ -144,9 +147,11 @@ class UserController {
     }
 
     public static function delete() {
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id > 0 && $id != ($_SESSION['user_id'] ?? 0)) {
-            UserModel::delete($id);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0 && $id != ($_SESSION['user_id'] ?? 0)) {
+                UserModel::delete($id);
+            }
         }
         header('Location: index.php?page=users');
         exit;

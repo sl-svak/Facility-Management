@@ -1,11 +1,18 @@
 <?php
+
+// --- BEZPEČNOSTNÍ NASTAVENÍ SESSION (Musí být před session_start) ---
+ini_set('session.use_strict_mode', 1);
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.cookie_secure', 1); // Striktní produkční politika: Session funguje pouze přes HTTPS
+
 session_start();
 
 // -----------------------------------------------------------------------------
 // 0. NASTAVENÍ ZOBRAZOVÁNÍ CHYB (Produkční režim)
 // -----------------------------------------------------------------------------
-ini_set('display_errors', 0);
-ini_set('display_startup_errors', 0);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(0);
 
 // 1. Kontrola konfigurace (Instalátor)
@@ -57,7 +64,14 @@ try {
             }
 
             if (!$isSecure) {
-                $redirectUrl = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                $host = $_SERVER['HTTP_HOST'] ?? '';
+                // OCHRANA PROTI HOST HEADER INJECTION: Povolíme jen a-z, 0-9, tečky, pomlčky a volitelně port
+                if (!preg_match('/^[a-zA-Z0-9.-]+(:\d+)?$/', $host)) {
+                    http_response_code(400);
+                    die('Neplatná hlavička Host.');
+                }
+                
+                $redirectUrl = 'https://' . $host . $_SERVER['REQUEST_URI'];
                 header('HTTP/1.1 301 Moved Permanently');
                 header('Location: ' . $redirectUrl);
                 exit;
@@ -93,6 +107,9 @@ if ($page === 'login') {
         $loginResult = Auth::login($username, $password);
         
         if ($loginResult === 'success') {
+            // ZABRÁNĚNÍ SESSION FIXATION (Regenerace ID po úspěšném přihlášení)
+            session_regenerate_id(true);
+            
             $redirect = $_SESSION['redirect_after_login'] ?? 'index.php?page=dashboard';
             unset($_SESSION['redirect_after_login']);
             header('Location: ' . $redirect);
@@ -128,17 +145,53 @@ if (Auth::isLoggedIn() && !empty($_SESSION['force_password_change']) && !in_arra
 }
 
 // -----------------------------------------------------------------------------
+// 4.6 GLOBÁLNÍ CSRF OCHRANA A KONTROLA ORIGINU (OBRANA DO HLOUBKY)
+// -----------------------------------------------------------------------------
+$host = $_SERVER['HTTP_HOST'] ?? '';
+
+// A) Ochrana destruktivních GET požadavků (např. mazání přes URL odkaz) pomocí Refereru
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && strpos($page, '_delete') !== false) {
+    $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    if (empty($referer) || strpos($referer, $host) === false) {
+        http_response_code(403);
+        die('Bezpečnostní omezení (CSRF): Položky nelze mazat přímým přístupem z externího odkazu nebo bez kontextu.');
+    }
+}
+
+// B) Klasická kontrola POST požadavků (Token + Origin)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
+    
+    if (!empty($origin) && strpos($origin, $host) === false) {
+        http_response_code(403);
+        die('Bezpečnostní chyba: Neplatný původ požadavku (Cross-Origin).');
+    }
+
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (!Security::verifyToken($submittedToken)) {
+        http_response_code(403);
+        die('
+            <div style="font-family: sans-serif; text-align: center; margin-top: 50px; color: #e74c3c;">
+                <h2 style="font-size: 2em; margin-bottom: 10px;">Bezpečnostní chyba (403)</h2>
+                <p>Platnost formuláře vypršela nebo chybí bezpečnostní token (CSRF). Data nebyla uložena.</p>
+                <button onclick="history.back()" style="padding: 10px 20px; font-size: 1em; cursor: pointer; background: #34495e; color: white; border: none; border-radius: 4px; margin-top: 20px;">Zpět k formuláři</button>
+            </div>
+        ');
+    }
+}
+
+// -----------------------------------------------------------------------------
 // 5. GLOBÁLNÍ FUNKCE PRO VYKRESLENÍ ŠABLONY (VIEW)
 // -----------------------------------------------------------------------------
-function renderView($viewName, $variables = []) {
-    extract($variables); 
+function renderView($_viewName, $variables = []) {
+    extract($variables, EXTR_SKIP); 
     ob_start(); 
-    $viewPath = APP_ROOT . "/app/Views/{$viewName}.php";
+    $_viewPath = APP_ROOT . "/app/Views/{$_viewName}.php";
     
-    if (file_exists($viewPath)) {
-        require $viewPath;
+    if (file_exists($_viewPath)) {
+        require $_viewPath;
     } else {
-        echo "<h2>Chyba 404: Šablona {$viewName} nenalezena.</h2>";
+        echo "<h2>Chyba 404: Šablona {$_viewName} nenalezena.</h2>";
     }
     
     $content = ob_get_clean(); 
@@ -184,6 +237,7 @@ switch ($page) {
     
     case 'plans':           Auth::requireRole(['admin', 'manager']); PlanController::index(); break;
     case 'plan_create':     Auth::requireRole(['admin', 'manager']); PlanController::create(); break;
+    case 'plan_update':     Auth::requireRole(['admin', 'manager']); PlanController::update(); break;
     case 'plan_delete':     Auth::requireRole(['admin', 'manager']); PlanController::delete(); break;
     
     case 'reports':         Auth::requireRole(['admin', 'manager']); ReportController::index(); break;
@@ -197,6 +251,11 @@ switch ($page) {
     
     case 'settings':        Auth::requireRole('admin'); SettingsController::index(); break;
     case 'settings_save':   Auth::requireRole('admin'); SettingsController::save(); break;
+    
+    case 'file':
+		require_once APP_ROOT . '/app/Controllers/FileController.php';
+		FileController::serve();
+		break;
     
     case 'security_logs':   
         Auth::requireRole('admin'); 

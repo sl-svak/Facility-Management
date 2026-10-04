@@ -1,15 +1,34 @@
 <?php
+// Bezpečnostní nastavení chyb
+ini_set('display_errors', 0);
+error_reporting(0);
+
 session_start();
 
 $baseDir    = __DIR__;
 $configDir  = $baseDir . '/config';
 $configFile = $configDir . '/config.php';
+$lockFile   = $configDir . '/installed.lock';
+
+// -----------------------------------------------------------------------------
+// 1. NEPRŮSTŘELNÁ OCHRANA PROTI RE-INSTALACI (ZÁMEK)
+// -----------------------------------------------------------------------------
+if (file_exists($lockFile)) {
+    http_response_code(403);
+    die('
+        <div style="font-family: sans-serif; text-align: center; margin-top: 50px; color: #27ae60;">
+            <h2 style="font-size: 2em; margin-bottom: 10px;">Systém je již nainstalován</h2>
+            <p style="color: #555;">Z bezpečnostních důvodů nelze instalaci spustit znovu. Vraťte se na <a href="index.php" style="color: #2980b9;">Přihlašovací obrazovku</a>.</p>
+            <p style="color: #999; font-size: 0.8em; margin-top: 20px;">(Pokud opravdu potřebujete instalaci opakovat, musíte přes FTP smazat soubor config/installed.lock)</p>
+        </div>
+    ');
+}
 
 $step = (int)($_GET['step'] ?? 1);
 $error = '';
-$success = '';
 
-if (file_exists($configFile)) {
+// Dodatečná kontrola pro případ, že existuje config, ale chybí lock file.
+if (file_exists($configFile) && $step === 1) {
     require_once $configFile;
     if (defined('APP_ROOT')) {
         require_once APP_ROOT . '/app/Core/Database.php';
@@ -17,16 +36,23 @@ if (file_exists($configFile)) {
             $pdo = Database::getConnection();
             $stmt = $pdo->query("SELECT COUNT(*) FROM users");
             if ($stmt && (int)$stmt->fetchColumn() > 0) {
+                // Systém se zdá být nainstalovaný (má uživatele), vytvoříme chybějící zámek a zamítneme přístup
+                @file_put_contents($lockFile, 'Uzamceno automaticky: ' . date('Y-m-d H:i:s'));
                 header('Location: index.php?page=login');
                 exit;
-            } elseif ($step === 1 && $_SERVER['REQUEST_METHOD'] === 'GET') {
+            } else {
                 header('Location: install.php?step=2');
                 exit;
             }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+            // Při výpadku DB nesmíme padat tiše do instalace
+        }
     }
 }
 
+// -----------------------------------------------------------------------------
+// 2. ZPRACOVÁNÍ FORMULÁŘŮ A VYTVOŘENÍ SCHÉMATU
+// -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($step === 1) {
         $db_host = trim($_POST['db_host'] ?? 'localhost');
@@ -46,15 +72,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!is_dir($configDir)) @mkdir($configDir, 0777, true);
 
+                // Bezpečný zápis config.php s ochranou proti přímému zobrazení
                 $configContent = "<?php\n" .
+                    "// Ochrana proti přímému přístupu\n" .
+                    "if (!defined('APP_ROOT')) {\n" .
+                    "    http_response_code(403);\n" .
+                    "    exit('Přímý přístup není povolen.');\n" .
+                    "}\n\n" .
                     "define('DB_HOST', " . var_export($db_host, true) . ");\n" .
                     "define('DB_NAME', " . var_export($db_name, true) . ");\n" .
                     "define('DB_USER', " . var_export($db_user, true) . ");\n" .
-                    "define('DB_PASS', " . var_export($db_pass, true) . ");\n" .
-                    "define('APP_ROOT', __DIR__ . '/..');\n";
+                    "define('DB_PASS', " . var_export($db_pass, true) . ");\n";
                 
                 if (@file_put_contents($configFile, $configContent) === false) {
-                    throw new Exception("Nepodařilo se zapsat do souboru config.php.");
+                    throw new Exception("Nepodařilo se zapsat do složky config/. Zkontrolujte oprávnění (chmod).");
                 }
 
                 $pdo->exec("
@@ -95,7 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ip_address VARCHAR(45) NOT NULL,
                         username VARCHAR(50) NOT NULL,
                         status ENUM('success', 'failed') NOT NULL,
-                        user_agent VARCHAR(255)
+                        user_agent VARCHAR(255),
+                        INDEX idx_ip_time (ip_address, attempt_time)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
                     CREATE TABLE IF NOT EXISTS assets (
@@ -130,6 +162,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         FOREIGN KEY (form_template_id) REFERENCES form_templates(id) ON DELETE CASCADE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+                    CREATE TABLE IF NOT EXISTS plan_changes_log (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        rule_id INT NOT NULL,
+                        user_id INT NULL,
+                        old_period INT NOT NULL,
+                        new_period INT NOT NULL,
+                        reason TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (rule_id) REFERENCES asset_form_rules(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
                     CREATE TABLE IF NOT EXISTS inspections (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         asset_id INT NOT NULL,
@@ -139,6 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         data_json MEDIUMTEXT NOT NULL,
                         duration_seconds INT DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_status (status),
+                        INDEX idx_created_at (created_at),
                         FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
                         FOREIGN KEY (form_template_id) REFERENCES form_templates(id) ON DELETE CASCADE,
                         FOREIGN KEY (technician_id) REFERENCES users(id) ON DELETE SET NULL
@@ -152,9 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         status VARCHAR(20) DEFAULT 'open',
                         resolution_text TEXT NULL,
                         resolution_signature MEDIUMTEXT NULL,
+                        resolution_photos TEXT NULL,
                         resolved_by INT NULL,
                         resolved_at TIMESTAMP NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_status_created (status, created_at),
                         FOREIGN KEY (inspection_id) REFERENCES inspections(id) ON DELETE SET NULL,
                         FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
                         FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
@@ -171,14 +219,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
                     INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('app_name', 'CMMS Cosmonde'), ('favicon_path', '');
-                    INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.5');
+                    INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.7');
                 ");
 
                 header('Location: install.php?step=2');
                 exit;
 
             } catch (Exception $e) {
-                $error = 'Chyba databáze: ' . $e->getMessage();
+                // Nikdy nezobrazujeme detailní chybu uživateli v produkci!
+                $error = 'Chyba databáze: Zkontrolujte prosím přihlašovací údaje a ujistěte se, že databáze existuje.';
             }
         }
     } elseif ($step === 2) {
@@ -189,7 +238,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($username) || empty($password) || empty($first_name) || empty($last_name)) {
             $error = 'Vyplňte prosím všechna pole.';
+        } elseif (mb_strlen($password) < 12) {
+            $error = 'Z bezpečnostních důvodů musí mít heslo administrátora minimálně 12 znaků.';
         } else {
+            define('APP_ROOT', __DIR__);
             require_once $configFile;
             require_once APP_ROOT . '/app/Core/Database.php';
 
@@ -205,11 +257,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("INSERT INTO users (username, password, first_name, last_name, role, is_active) VALUES (?, ?, ?, ?, 'admin', 1)");
                     $stmt->execute([$username, $hashed_password, $first_name, $last_name]);
 
-                    header('Location: install.php?step=3');
+                    // UZAMČENÍ INSTALACE
+                    @file_put_contents($lockFile, 'Instalace dokoncena: ' . date('Y-m-d H:i:s'));
+                    
+                    // POKUS O TRVALÉ SMAZÁNÍ
+                    $deleted = @unlink(__FILE__);
+
+                    // Okamžité vykreslení zprávy o úspěchu (Vyhneme se přesměrování do zamčeného/smazaného skriptu)
+                    echo '<!DOCTYPE html>
+                    <html lang="cs">
+                    <head>
+                        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Instalace dokončena</title>
+                        <style>body{font-family:"Segoe UI",Tahoma,sans-serif;background:#f4f7f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:20px;} .box{background:#fff;padding:40px;border-radius:8px;box-shadow:0 4px 15px rgba(0,0,0,0.05);max-width:500px;text-align:center;border-top:4px solid #27ae60;} .btn{display:inline-block;background:#2980b9;color:#fff;border:none;padding:12px 25px;border-radius:4px;text-decoration:none;font-size:1.1em;margin-top:20px;font-weight:bold;}</style>
+                    </head>
+                    <body>
+                        <div class="box">
+                            <h2 style="margin-top:0;color:#27ae60;">Instalace byla úspěšná!</h2>';
+                            
+                            if ($deleted) {
+                                echo '<div style="background:#eafaf1;color:#27ae60;padding:15px;border-radius:4px;border:1px solid #c3e6cb;margin:20px 0;">Instalační soubor byl z bezpečnostních důvodů <strong>trvale smazán</strong>.</div>';
+                            } else {
+                                echo '<div style="background:#fff3cd;color:#856404;padding:15px;border-radius:4px;border:1px solid #ffeeba;margin:20px 0;text-align:left;">
+                                    <strong>POZOR: Server nedovolil automatické smazání.</strong><br>
+                                    Systém je sice chráněn datovým zámkem, ale pro stoprocentní jistotu se prosím připojte na FTP a <strong>smažte soubor install.php ručně</strong>.
+                                </div>';
+                            }
+                            
+                            echo '<a href="index.php?page=login" class="btn">Přejít k přihlášení</a>
+                        </div>
+                    </body>
+                    </html>';
                     exit;
                 }
             } catch (Exception $e) {
-                $error = 'Chyba: ' . $e->getMessage();
+                $error = 'Došlo k chybě při vytváření administrátora.';
             }
         }
     }
@@ -247,12 +328,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label>Uživatelské jméno (login)</label><input type="text" name="username" required>
                 <label>Jméno</label><input type="text" name="first_name" required>
                 <label>Příjmení</label><input type="text" name="last_name" required>
-                <label>Heslo</label><input type="password" name="password" required>
+                <label>Heslo administrátora (min. 12 znaků)</label><input type="password" name="password" minlength="12" required>
                 <button type="submit" class="btn" style="background: #27ae60;">Dokončit instalaci</button>
             </form>
-        <?php elseif ($step === 3): ?>
-            <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">Instalace úspěšná!</div>
-            <a href="index.php?page=login" class="btn" style="text-align: center; text-decoration: none; display: block; box-sizing: border-box; background: #27ae60;">Přihlásit se</a>
         <?php endif; ?>
     </div>
 </body>

@@ -6,7 +6,7 @@
     </h3>
     
     <?php if (isset($_GET['success'])): ?>
-        <div style="padding: 15px; background: #d4edda; color: #155724; border-radius: 4px; border: 1px solid #c3e6cb; margin-bottom: 20px;">
+        <div style="padding: 15px; background: rgba(46, 204, 113, 0.15); color: var(--success); border-radius: 4px; border: 1px solid var(--success); margin-bottom: 20px;">
             <span class="material-symbols-outlined" style="vertical-align: middle;">check_circle</span> 
             <strong>Uloženo!</strong> Nastavení bylo úspěšně aktualizováno.
         </div>
@@ -14,14 +14,17 @@
 
     <form method="POST" action="index.php?page=settings_save" enctype="multipart/form-data">
         
+        <!-- OCHRANA CSRF -->
+        <?= Security::csrfField() ?>
+
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Název aplikace (zobrazí se v hlavičce a menu) *</label>
-            <input type="text" name="settings[app_name]" value="<?= htmlspecialchars($settings['app_name'] ?? 'CMMS') ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1.1em;">
+            <input type="text" name="settings[app_name]" value="<?= htmlspecialchars($settings['app_name'] ?? 'CMMS') ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1.1em; background: var(--card-bg); color: var(--text-main);">
         </div>
 
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Typ písma (Zobrazení na mobilu) *</label>
-            <select name="settings[app_font]" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1em; background: #fff;">
+            <select name="settings[app_font]" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1em; background: var(--card-bg); color: var(--text-main);">
                 <option value="default" <?= (!isset($settings['app_font']) || $settings['app_font'] === 'default') ? 'selected' : '' ?>>
                     Výchozí (Standardní širší font z CSS)
                 </option>
@@ -39,7 +42,7 @@
 
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Režim plánování údržby *</label>
-            <select name="settings[workweek_days]" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1em; background: #fff;">
+            <select name="settings[workweek_days]" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1em; background: var(--card-bg); color: var(--text-main);">
                 <option value="5" <?= (!isset($settings['workweek_days']) || $settings['workweek_days'] == 5) ? 'selected' : '' ?>>
                     5denní provoz (Po - Pá, víkendy se přeskakují)
                 </option>
@@ -54,19 +57,19 @@
 
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Začátek nového dne pro údržbu (Hodina) *</label>
-            <input type="number" min="0" max="23" name="settings[shift_start_hour]" value="<?= htmlspecialchars($settings['shift_start_hour'] ?? '0') ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1.1em; background: #fff;">
+            <input type="number" min="0" max="23" name="settings[shift_start_hour]" value="<?= htmlspecialchars($settings['shift_start_hour'] ?? '0') ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1.1em; background: var(--card-bg); color: var(--text-main);">
             <div style="font-size: 0.85em; color: var(--text-muted); margin-top: 5px;">
                 Pokud máte noční provoz, zadejte hodinu (např. <strong>6</strong> pro 06:00), od kdy se láme "nový den". Úkony provedené po půlnoci tak stále spadnou do předchozího dne a neposunou nechtěně plány. Výchozí hodnota <strong>0</strong> odpovídá běžné půlnoci.
             </div>
         </div>
 
         <!-- NOVÉ POLE: ZABEZPEČENÍ HTTPS -->
-        <div style="margin-bottom: 20px; padding: 15px; background: #fdfdfd; border: 1px solid var(--border-color); border-radius: 6px;">
-            <h4 style="margin-top: 0; color: #2c3e50;">
-                <span class="material-symbols-outlined" style="vertical-align: middle; color: #2980b9;">lock</span> 
+        <div style="margin-bottom: 20px; padding: 15px; background: var(--background); border: 1px solid var(--border-color); border-radius: 6px;">
+            <h4 style="margin-top: 0; color: var(--text-main);">
+                <span class="material-symbols-outlined" style="vertical-align: middle; color: var(--info);">lock</span> 
                 Zabezpečení spojení
             </h4>
-            <label style="display: flex; align-items: center; cursor: pointer; font-weight: bold; color: #333;">
+            <label style="display: flex; align-items: center; cursor: pointer; font-weight: bold; color: var(--text-main);">
                 <input type="checkbox" name="settings[force_https]" value="1" <?= (isset($settings['force_https']) && $settings['force_https'] === '1') ? 'checked' : '' ?> style="transform: scale(1.3); margin-right: 12px;">
                 Vynutit šifrované spojení (HTTPS)
             </label>
@@ -86,7 +89,7 @@
                 </div>
             <?php endif; ?>
             
-            <input type="file" name="favicon" accept=".png,.ico,.jpg,.svg" style="width: 100%; padding: 10px; background: #f9f9f9; border: 1px dashed var(--border-color); border-radius: 4px; box-sizing: border-box;">
+            <input type="file" name="favicon" accept=".png,.ico,.jpg,.svg" style="width: 100%; padding: 10px; background: var(--background); color: var(--text-main); border: 1px dashed var(--border-color); border-radius: 4px; box-sizing: border-box;">
             <div style="font-size: 0.85em; color: var(--text-muted); margin-top: 5px;">Podporované formáty: PNG, ICO, SVG, JPG. Doporučený rozměr 32x32 nebo 64x64 px.</div>
         </div>
 

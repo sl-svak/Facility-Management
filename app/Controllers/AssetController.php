@@ -3,12 +3,13 @@ class AssetController {
     
     // 1. Zobrazení stránky se seznamem a aplikovaným filtrem
     public static function index() {
-        // Zjištění úseku aktuálně přihlášeného uživatele
-        $currentUser = UserModel::getById($_SESSION['user_id']);
-        $userDepts = $currentUser['departments'] ?? [];
-
-        // Načtení strojů s filtrem (Model se sám rozhodne, co uživateli ukáže)
-        $assets = AssetModel::getAll($userDepts);
+        if (Auth::isAdmin()) {
+            $assets = AssetModel::getAll();
+        } else {
+            $currentUser = UserModel::getById($_SESSION['user_id']);
+            $userDepts = $currentUser['departments'] ?? [];
+            $assets = empty($userDepts) ? [] : AssetModel::getAll($userDepts);
+        }
         
         // Načtení všech úseků pro roletku ve formuláři
         $departments = DepartmentModel::getAll();
@@ -27,6 +28,16 @@ class AssetController {
             $description = trim($_POST['description'] ?? '');
             $department_id = !empty($_POST['department_id']) ? (int)$_POST['department_id'] : null;
             
+            // BEZPEČNOSTNÍ ZÁMEK: Manažer může přidělovat stroje jen do svých úseků
+            if ($department_id !== null && !Auth::isAdmin()) {
+                $currentUser = UserModel::getById($_SESSION['user_id']);
+                $userDepts = $currentUser['departments'] ?? [];
+                if (!in_array($department_id, $userDepts)) {
+                    http_response_code(403);
+                    die("Bezpečnostní chyba: Nemáte oprávnění přiřadit zařízení do tohoto úseku.");
+                }
+            }
+            
             if (!empty($name)) {
                 AssetModel::create($name, $description, $department_id);
             }
@@ -35,10 +46,16 @@ class AssetController {
         exit;
     }
 
-    // 3. Odstranění zařízení
+    // 3. Odstranění zařízení (Ochrana proti CSRF přes POST)
     public static function delete() {
-        if (isset($_GET['id'])) {
-            $id = (int)$_GET['id'];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
+            $id = (int)$_POST['id'];
+            
+            if (!Auth::canAccessAsset($id)) {
+                http_response_code(403);
+                die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
+            }
+            
             AssetModel::delete($id);
         }
         header('Location: index.php?page=assets');
@@ -50,9 +67,9 @@ class AssetController {
         $id = (int)($_GET['id'] ?? 0);
         $asset = AssetModel::getById($id);
         
-        if (!$asset) {
-            header('Location: index.php?page=assets');
-            exit;
+        if (!$asset || !Auth::canAccessAsset($id)) {
+            http_response_code(403);
+            die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
         }
 
         $departments = DepartmentModel::getAll();
@@ -73,6 +90,22 @@ class AssetController {
             $department_id = !empty($_POST['department_id']) ? (int)$_POST['department_id'] : null;
             
             if ($id > 0 && !empty($name)) {
+                // 1. Zkontrolujeme, zda má uživatel právo upravovat tento konkrétní stroj
+                if (!Auth::canAccessAsset($id)) {
+                    http_response_code(403);
+                    die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
+                }
+                
+                // 2. BEZPEČNOSTNÍ ZÁMEK: Zkontrolujeme, zda stroj nepřesouvá do cizího úseku
+                if ($department_id !== null && !Auth::isAdmin()) {
+                    $currentUser = UserModel::getById($_SESSION['user_id']);
+                    $userDepts = $currentUser['departments'] ?? [];
+                    if (!in_array($department_id, $userDepts)) {
+                        http_response_code(403);
+                        die("Bezpečnostní chyba: Nemáte oprávnění přesunout zařízení do cizího úseku.");
+                    }
+                }
+
                 AssetModel::update($id, $name, $description, $department_id);
             }
         }

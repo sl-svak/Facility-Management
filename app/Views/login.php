@@ -19,11 +19,15 @@
 <body>
     <div class="login-box">
         <h2>Vstup do systému</h2>
-        <?php if (!empty($error)) echo "<div class='error'>" . htmlspecialchars($error) . "</div>"; ?>
+        <?php if (!empty($error)) echo "<div class='error'>" . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . "</div>"; ?>
         <form method="POST" action="index.php?page=login">
+            <!-- PŘIDÁNO: Bezpečnostní CSRF token chránící formulář před podvržením -->
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+            
             <div class="form-group">
                 <label for="username">Přihlašovací jméno</label>
-                <input type="text" id="username" name="username" required autocomplete="username">
+                <!-- PŘIDÁNO: autofocus pro lepší uživatelský komfort -->
+                <input type="text" id="username" name="username" required autocomplete="username" autofocus>
             </div>
             <div class="form-group">
                 <label for="password">Heslo</label>

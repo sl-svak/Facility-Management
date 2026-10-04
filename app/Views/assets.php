@@ -35,6 +35,10 @@ function printQrCode(qrUrl, assetName) {
 <div class="card card-primary-top">
     <h3 style="margin-top:0;"><span class="material-symbols-outlined" style="vertical-align: middle;">add_circle</span> Přidat nové zařízení</h3>
     <form method="POST" action="index.php?page=asset_create" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+        
+        <!-- OCHRANA CSRF -->
+        <?= Security::csrfField() ?>
+
         <div style="flex: 1; min-width: 200px;">
             <label for="name" style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Název zařízení *</label>
             <input type="text" id="name" name="name" required placeholder="Např. Kotelna SO03, Změkčovač ZV1" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background: var(--card-bg); color: var(--text-main);">

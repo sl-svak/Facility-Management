@@ -1,4 +1,4 @@
-# 1. Zákaz procházení obsahu složek na celém webu.
+# 1. Zákaz procházení obsahu složek na celém webu
 Options -Indexes
 
 # 2. Vynucení HTTPS (ošetřeno pro proxy servery hostingu)
@@ -21,8 +21,14 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
-# 4. Zabezpečení proti kliknutí přes iframe (Clickjacking)
+# 4. Zabezpečení hlavičkami (Obrana proti Clickjackingu, XSS, MIME sniffingu a dalším)
 <IfModule mod_headers.c>
     Header always append X-Frame-Options SAMEORIGIN
     Header set X-XSS-Protection "1; mode=block"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # CSP upraveno pro načítání našich externích knihoven a fontů
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://api.qrserver.com; font-src 'self' https://fonts.gstatic.com;"
 </IfModule>

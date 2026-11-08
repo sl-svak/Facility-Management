@@ -78,6 +78,13 @@ try {
         error_log("CMMS Update: úklid osiřelých plánů selhal: " . $e->getMessage());
     }
 
+    // D) Záznam o verzi aplikace
+    try {
+        $pdo->exec("INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.8')");
+    } catch (PDOException $e) {
+        // Tabulka system_migrations nemusí u starších instalací existovat
+    }
+
     $message = "Databáze a výkonnostní indexy byly úspěšně aktualizovány.";
 
     // -----------------------------------------------------------------------------

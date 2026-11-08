@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
                     INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('app_name', 'CMMS Cosmonde'), ('favicon_path', '');
-                    INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.7');
+                    INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.8');
                 ");
 
                 header('Location: install.php?step=2');

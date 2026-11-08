@@ -1,6 +1,6 @@
 <?php if (!defined('APP_ROOT')) exit; ?>
 <!-- Načtení knihovny pro vykreslování grafů -->
-<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@8.8.0/dist/apexcharts.min.js" integrity="sha384-CI+n6IgfcbxZwiOPoWBZPlJJexTa8mRT4m/L7zZ0PgERTsr8M0xnT/8Z0LZWQVhM" crossorigin="anonymous"></script>
 
 <div class="card card-primary-top">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">

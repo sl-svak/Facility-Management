@@ -58,7 +58,10 @@ $bodyClassString = implode(' ', $bodyClasses);
                 </button>
                 <span><?= htmlspecialchars($globalAppName) ?></span>
             </div>
-            <a href="index.php?page=logout" class="logout-btn" title="Odhlásit se"><span class="material-symbols-outlined">logout</span></a>
+            <form method="POST" action="index.php?page=logout" style="margin: 0;">
+                <?= Security::csrfField() ?>
+                <button type="submit" class="logout-btn" title="Odhlásit se" style="background: none; border: none; cursor: pointer; font: inherit;"><span class="material-symbols-outlined">logout</span></button>
+            </form>
         </div>
         
         <ul class="nav-menu">
@@ -88,7 +91,7 @@ $bodyClassString = implode(' ', $bodyClasses);
             <li><a href="index.php?page=tickets" class="<?= (isset($_GET['page']) && $_GET['page'] === 'tickets') ? 'active' : '' ?>"><span class="material-symbols-outlined">assignment_late</span> <span class="text">Úkoly a závady</span></a></li>
         </ul>
         
-        <div class="user-info" onclick="window.location.href='index.php?page=profile'" title="Upravit profil a heslo">
+        <div class="user-info" data-href="index.php?page=profile" title="Upravit profil a heslo">
             <span>
                 <span class="material-symbols-outlined" style="vertical-align: middle; font-size:1.2em;">account_circle</span> 
                 <?= htmlspecialchars($_SESSION['first_name'] ?? 'Uživatel') ?>
@@ -123,12 +126,5 @@ $bodyClassString = implode(' ', $bodyClasses);
 
     <!-- PŘIDÁNO: Načtení globálního JavaScriptu pro celý systém -->
     <script src="assets/js/app.js?v=<?= filemtime('assets/js/app.js') ?>"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function () {
-                navigator.serviceWorker.register('sw.js').catch(function () {});
-            });
-        }
-    </script>
 </body>
 </html>

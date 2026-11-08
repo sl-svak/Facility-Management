@@ -49,7 +49,7 @@
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <h3 style="margin-top:0; color: var(--text-main);">Aktivní plány údržby</h3>
-        <button type="button" class="btn" style="background: var(--primary); color: #fff;" onclick="document.getElementById('historyModal').style.display='flex'">
+        <button type="button" class="btn" style="background: var(--primary); color: #fff;" data-modal-open="historyModal">
             <span class="material-symbols-outlined" style="vertical-align: middle;">history</span> Historie změn lhůt
         </button>
     </div>
@@ -78,7 +78,7 @@
                             </td>
                             <td style="text-align: right; white-space: nowrap;">
                                 <button type="button" class="btn btn-warning" style="padding: 6px 12px; font-size: 0.9em; margin-right: 5px;" 
-                                    onclick="openEditModal(<?= $r['id'] ?>, <?= $r['period_days'] ?>, <?= $r['warning_days'] ?>, '<?= htmlspecialchars(addslashes($r['asset_name'])) ?>')">
+                                    data-action="openEditModal" data-args="<?= htmlspecialchars(json_encode([(int)$r['id'], (int)$r['period_days'], (int)$r['warning_days'], (string)$r['asset_name']]), ENT_QUOTES, 'UTF-8') ?>">
                                     <span class="material-symbols-outlined" style="font-size: 1.2em; vertical-align: middle;">edit</span> Upravit
                                 </button>
                                 
@@ -86,7 +86,7 @@
                                 <form method="POST" action="index.php?page=plan_delete" style="display: inline-block; margin: 0;">
                                     <?= Security::csrfField() ?>
                                     <input type="hidden" name="id" value="<?= $r['id'] ?>">
-                                    <button type="submit" onclick="return confirm('Opravdu chcete tento plán smazat? Přestanou se generovat kontroly.');" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.9em; border: none; cursor: pointer;">
+                                    <button type="submit" data-confirm="Opravdu chcete tento plán smazat? Přestanou se generovat kontroly." class="btn btn-danger" style="padding: 6px 12px; font-size: 0.9em; border: none; cursor: pointer;">
                                         <span class="material-symbols-outlined" style="font-size: 1.2em; vertical-align: middle;">delete</span>
                                     </button>
                                 </form>
@@ -130,7 +130,7 @@
             </div>
             
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" onclick="document.getElementById('editModal').style.display='none'" class="btn" style="background: var(--text-muted); color: #fff;">Zrušit</button>
+                <button type="button" data-modal-close="editModal" class="btn" style="background: var(--text-muted); color: #fff;">Zrušit</button>
                 <button type="submit" class="btn btn-success">Uložit změnu a logovat</button>
             </div>
         </form>
@@ -142,7 +142,7 @@
     <div class="card" style="width: 100%; max-width: 800px; margin: 20px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">
             <h3 style="margin: 0; color: var(--primary);">Auditní deník: Změny lhůt</h3>
-            <button type="button" onclick="document.getElementById('historyModal').style.display='none'" style="background:none; border:none; font-size:1.5em; cursor:pointer; color: var(--text-muted);">&times;</button>
+            <button type="button" data-modal-close="historyModal" style="background:none; border:none; font-size:1.5em; cursor:pointer; color: var(--text-muted);">&times;</button>
         </div>
         
         <?php if (empty($history)): ?>
@@ -173,12 +173,4 @@
 </div>
 
 <!-- OPRAVA: Doplněn chybějící JavaScript pro zobrazení editačního okna -->
-<script>
-function openEditModal(id, period, warning, assetName) {
-    document.getElementById('edit_id').value = id;
-    document.getElementById('edit_period').value = period;
-    document.getElementById('edit_warning').value = warning;
-    document.getElementById('editAssetName').textContent = assetName;
-    document.getElementById('editModal').style.display = 'flex';
-}
-</script>
+<script src="assets/js/page-plans.js?v=<?= filemtime(APP_ROOT . '/assets/js/page-plans.js') ?>"></script>

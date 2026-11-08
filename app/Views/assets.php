@@ -9,27 +9,6 @@ $baseUrl = $protocol . $host . $path;
 ?>
 
 <!-- JavaScript pro tisk štítku s názvem -->
-<script>
-function printQrCode(qrUrl, assetName) {
-    var win = window.open('', '_blank', 'width=400,height=550');
-    if (!win) return;
-    var doc = win.document;
-    doc.open();
-    doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title></title><style>' +
-        'body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }' +
-        'h2 { margin-bottom: 20px; color: #2c3e50; font-size: 24px; word-wrap: break-word; }' +
-        'img { width: 250px; height: 250px; background: #fff; border: 1px solid #ccc; padding: 10px; border-radius: 8px; }' +
-        'button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #2980b9; color: white; border: none; border-radius: 6px; margin-top: 20px; }' +
-        '@media print { button { display: none; } }' +
-        '</style></head><body><h2></h2><img alt="QR Kód"><br><button>🖨️ Vytisknout štítek</button></body></html>');
-    doc.close();
-    // Název se vkládá jako text (ne jako HTML), takže nelze vložit škodlivý kód
-    doc.title = 'Tisk štítku: ' + assetName;
-    doc.querySelector('h2').textContent = assetName;
-    doc.querySelector('img').src = new URL(qrUrl, window.location.href).href;
-    doc.querySelector('button').onclick = function () { win.print(); };
-}
-</script>
 
 <!-- Formulář pro přidání nového zařízení -->
 <div class="card card-primary-top">
@@ -117,7 +96,7 @@ function printQrCode(qrUrl, assetName) {
                                 </a>
                                 
                                 <!-- UPRAVENÉ TLAČÍTKO PRO TISK QR KÓDU S NÁZVEM -->
-                                <a href="#" onclick="printQrCode(<?= htmlspecialchars(json_encode($qrApiUrl), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($a['name']), ENT_QUOTES, 'UTF-8') ?>); return false;" style="color: var(--success); text-decoration: none; margin-right: 15px;" title="Vytisknout QR kód k nalepení">
+                                <a href="<?= htmlspecialchars($qrApiUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" style="color: var(--success); text-decoration: none; margin-right: 15px;" title="Vytisknout QR kód k nalepení">
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">qr_code_2</span> Zobrazit QR kód
                                 </a>
                                 
@@ -128,7 +107,7 @@ function printQrCode(qrUrl, assetName) {
                                 <form method="POST" action="index.php?page=asset_delete" style="display: inline; margin: 0;">
                                     <?= Security::csrfField() ?>
                                     <input type="hidden" name="id" value="<?= $a['id'] ?>">
-                                    <button type="submit" onclick="return confirm('Opravdu chcete zařízení vyřadit? Historie údržby zůstane zachována.');" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Vyřadit zařízení">
+                                    <button type="submit" data-confirm="Opravdu chcete zařízení vyřadit? Historie údržby zůstane zachována." style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Vyřadit zařízení">
                                         <span class="material-symbols-outlined" style="vertical-align: middle;">delete</span> Smazat
                                     </button>
                                 </form>

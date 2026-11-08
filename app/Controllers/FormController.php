@@ -9,10 +9,27 @@ class FormController {
             $editTemplate = FormModel::getById((int)$_GET['edit_id']);
         }
         
+        // Použití šablon v plánech údržby (pro informaci před smazáním).
+        // Uživatel vidí jen zařízení ze svých úseků, ostatní se započtou jen počtem.
+        $usageAll = FormModel::getUsageMap();
+        $usageVisible = Auth::isAdmin() ? $usageAll : FormModel::getUsageMap(Auth::getDepartmentSqlFilter('a'));
+        $usage = [];
+        foreach ($templates as $tpl) {
+            $tid = (int)$tpl['id'];
+            $total = count($usageAll[$tid] ?? []);
+            $visible = $usageVisible[$tid] ?? [];
+            $usage[$tid] = [
+                'total' => $total,
+                'names' => array_values(array_unique(array_column($visible, 'asset_name'))),
+                'hidden' => $total - count($visible),
+            ];
+        }
+
         renderView('forms', [
             'pageTitle' => 'Šablony formulářů',
             'templates' => $templates,
-            'editTemplate' => $editTemplate
+            'editTemplate' => $editTemplate,
+            'usage' => $usage
         ]);
     }
 
@@ -45,7 +62,39 @@ class FormController {
     public static function delete() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
             $id = (int)$_POST['id'];
-            FormModel::delete($id);
+            $pdo = Database::getConnection();
+
+            // Šablony jsou společné pro všechny úseky. Smazáním se odstraní i plány údržby, takže
+            // ne-administrátor nesmí smazat šablonu použitou u zařízení mimo své úseky.
+            if (!Auth::isAdmin()) {
+                $all = FormModel::getUsageMap();
+                $mine = FormModel::getUsageMap(Auth::getDepartmentSqlFilter('a'));
+                if (count($all[$id] ?? []) !== count($mine[$id] ?? [])) {
+                    header('Location: index.php?page=forms&error=in_use_other');
+                    exit;
+                }
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                // Plány údržby (včetně jejich historie změn - ON DELETE CASCADE) přestanou existovat
+                $del = $pdo->prepare("DELETE FROM asset_form_rules WHERE form_template_id = ?");
+                $del->execute([$id]);
+                $removedPlans = $del->rowCount();
+
+                FormModel::delete($id);
+
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) { $pdo->rollBack(); }
+                error_log('Smazání šablony selhalo: ' . $e->getMessage());
+                header('Location: index.php?page=forms&error=failed');
+                exit;
+            }
+
+            header('Location: index.php?page=forms&deleted=1&plans=' . (int)$removedPlans);
+            exit;
         }
         header('Location: index.php?page=forms');
         exit;

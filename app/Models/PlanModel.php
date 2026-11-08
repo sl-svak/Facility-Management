@@ -10,7 +10,7 @@ class PlanModel {
             FROM asset_form_rules r
             JOIN assets a ON r.asset_id = a.id
             JOIN form_templates t ON r.form_template_id = t.id
-            WHERE $deptFilter
+            WHERE a.is_active = 1 AND t.is_active = 1 AND ($deptFilter)
             ORDER BY a.name ASC
         ";
         return $pdo->query($sql)->fetchAll();

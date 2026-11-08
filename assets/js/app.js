@@ -3,6 +3,83 @@
  * Zajistuje interaktivitu celeho systemu (podpisy, komprese fotek, modaly, ochranu formularu)
  */
 
+// ==========================================
+// OBSLUHA UDÁLOSTÍ BEZ INLINE ATRIBUTŮ (kvůli CSP bez 'unsafe-inline')
+// Atributy v HTML: data-confirm, data-href, data-modal-open/close,
+// data-action (+ data-args jako JSON pole), data-change, data-submit.
+// Volat lze jen funkce zaregistrované v window.CMMS_ACTIONS.
+// ==========================================
+window.CMMS_ACTIONS = window.CMMS_ACTIONS || {};
+
+function cmmsParseArgs(el) {
+    try {
+        const parsed = JSON.parse(el.getAttribute('data-args') || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (err) { return []; }
+}
+
+document.addEventListener('click', function (e) {
+    const confirmEl = e.target.closest('[data-confirm]');
+    if (confirmEl && !window.confirm(confirmEl.getAttribute('data-confirm'))) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+
+    const openEl = e.target.closest('[data-modal-open]');
+    if (openEl) {
+        const m = document.getElementById(openEl.getAttribute('data-modal-open'));
+        if (m) m.style.display = 'flex';
+    }
+    const closeEl = e.target.closest('[data-modal-close]');
+    if (closeEl) {
+        const m = document.getElementById(closeEl.getAttribute('data-modal-close'));
+        if (m) m.style.display = 'none';
+    }
+
+    const hrefEl = e.target.closest('[data-href]');
+    if (hrefEl) {
+        window.location.href = hrefEl.getAttribute('data-href');
+        return;
+    }
+
+    const actionEl = e.target.closest('[data-action]');
+    if (actionEl) {
+        const fn = Object.prototype.hasOwnProperty.call(window.CMMS_ACTIONS, actionEl.getAttribute('data-action'))
+            ? window.CMMS_ACTIONS[actionEl.getAttribute('data-action')] : null;
+        if (typeof fn === 'function') {
+            const result = fn.apply(actionEl, cmmsParseArgs(actionEl));
+            if (result === false || actionEl.tagName === 'A') e.preventDefault();
+        }
+    }
+});
+
+document.addEventListener('change', function (e) {
+    const el = e.target.closest('[data-change]');
+    if (!el) return;
+    const name = el.getAttribute('data-change');
+    if (Object.prototype.hasOwnProperty.call(window.CMMS_ACTIONS, name) && typeof window.CMMS_ACTIONS[name] === 'function') {
+        window.CMMS_ACTIONS[name].call(el, el.value);
+    }
+});
+
+// Capture fáze: validace proběhne dřív než ostatní posluchače odeslání formuláře
+document.addEventListener('submit', function (e) {
+    const form = e.target;
+    if (!form || !form.getAttribute || !form.hasAttribute('data-submit')) return;
+    const name = form.getAttribute('data-submit');
+    if (Object.prototype.hasOwnProperty.call(window.CMMS_ACTIONS, name) && typeof window.CMMS_ACTIONS[name] === 'function') {
+        if (window.CMMS_ACTIONS[name].call(form, e) === false) e.preventDefault();
+    }
+}, true);
+
+// Service worker (offline záloha statických souborů)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
 
     // 1. OCHRANA PROTI DVOJITEMU ODESLANI
@@ -12,6 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (btn) {
                 const originalText = btn.innerHTML;
                 setTimeout(() => {
+                    if (e.defaultPrevented) return; // validace formulář zastavila - tlačítko nezamykat
                     btn.disabled = true;
                     btn.innerHTML = '<span class="material-symbols-outlined" style="vertical-align: middle;">autorenew</span> Ukládám...';
                     
@@ -250,7 +328,7 @@ function restoreFormData() {
             document.querySelectorAll('#inspectionForm input[type="radio"]').forEach(radio => {
                 if (radio.name && formData[radio.name] === radio.value) {
                     radio.checked = true; restoredCount++;
-                    if (radio.hasAttribute('onchange')) radio.dispatchEvent(new Event('change'));
+                    if (radio.hasAttribute('data-change')) radio.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             });
 
@@ -465,4 +543,17 @@ document.addEventListener('click', function(event) {
             dropdown.classList.remove('active');
         });
     }
+});
+
+// Registrace funkcí volaných z HTML přes data-action / data-change / data-submit
+Object.assign(window.CMMS_ACTIONS, {
+    clearSignature: clearSignature,
+    clearInspectionSignature: clearInspectionSignature,
+    addResolutionPhoto: addResolutionPhoto,
+    addPhotoInput: addPhotoInput,
+    validateResolution: validateResolution,
+    validateInspectionForm: validateInspectionForm,
+    toggleFormFields: toggleFormFields,
+    toggleDropdown: toggleDropdown,
+    updateDropdownText: updateDropdownText
 });

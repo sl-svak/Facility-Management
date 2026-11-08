@@ -6,7 +6,7 @@ if (!is_array($schema)) { $schema = []; }
 ?>
 
 <!-- Externí knihovna pro konverzi HEIC z iPhonů -->
-<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="assets/js/vendor/heic2any.min.js"></script>
 
 <div class="card card-primary-top" style="max-width: 800px; margin: 0 auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
@@ -28,7 +28,7 @@ if (!is_array($schema)) { $schema = []; }
         </div>
     <?php else: ?>
         
-        <form method="POST" action="index.php?page=inspection_save" id="inspectionForm" data-asset-id="<?= $asset['id'] ?>" data-template-id="<?= $template['id'] ?>" onsubmit="return validateInspectionForm();">
+        <form method="POST" action="index.php?page=inspection_save" id="inspectionForm" data-asset-id="<?= $asset['id'] ?>" data-template-id="<?= $template['id'] ?>" data-submit="validateInspectionForm">
             
             <?= Security::csrfField() ?>
 
@@ -63,10 +63,10 @@ if (!is_array($schema)) { $schema = []; }
                     <?php if ($isStatusField): ?>
                         <div style="display: flex; gap: 15px;">
                             <label style="flex: 1; text-align: center; padding: 12px; border: 2px solid var(--info); border-radius: 6px; cursor: pointer; background: rgba(41, 128, 185, 0.1); font-weight: bold; color: var(--info); margin: 0;">
-                                <input type="radio" name="data[<?= htmlspecialchars($fieldId) ?>]" value="V provozu" checked onchange="toggleFormFields(this.value)" style="margin-right: 5px; transform: scale(1.2);"> V provozu
+                                <input type="radio" name="data[<?= htmlspecialchars($fieldId) ?>]" value="V provozu" checked data-change="toggleFormFields" style="margin-right: 5px; transform: scale(1.2);"> V provozu
                             </label>
                             <label style="flex: 1; text-align: center; padding: 12px; border: 2px solid var(--text-muted); border-radius: 6px; cursor: pointer; background: var(--background); font-weight: bold; color: var(--text-muted); margin: 0;">
-                                <input type="radio" name="data[<?= htmlspecialchars($fieldId) ?>]" value="Odstaveno" onchange="toggleFormFields(this.value)" style="margin-right: 5px; transform: scale(1.2);"> Odstaveno
+                                <input type="radio" name="data[<?= htmlspecialchars($fieldId) ?>]" value="Odstaveno" data-change="toggleFormFields" style="margin-right: 5px; transform: scale(1.2);"> Odstaveno
                             </label>
                         </div>
                     <?php elseif ($fieldType === 'radio_ok_ko' || $fieldType === 'status_ok_ko'): ?>
@@ -102,10 +102,10 @@ if (!is_array($schema)) { $schema = []; }
                             <div id="preview_<?= $index ?>" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 15px;"></div>
                             
                             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addPhotoInput(<?= $index ?>, '<?= htmlspecialchars($fieldId) ?>', 'camera')">
+                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" data-action="addPhotoInput" data-args="<?= htmlspecialchars(json_encode([(int)$index, (string)$fieldId, 'camera']), ENT_QUOTES, 'UTF-8') ?>">
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">photo_camera</span> Vyfotit
                                 </button>
-                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addPhotoInput(<?= $index ?>, '<?= htmlspecialchars($fieldId) ?>', 'gallery')">
+                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" data-action="addPhotoInput" data-args="<?= htmlspecialchars(json_encode([(int)$index, (string)$fieldId, 'gallery']), ENT_QUOTES, 'UTF-8') ?>">
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">photo_library</span> Z galerie
                                 </button>
                             </div>
@@ -119,7 +119,7 @@ if (!is_array($schema)) { $schema = []; }
                         <div style="border: 1px dashed var(--border-color); background: var(--card-bg); border-radius: 4px; padding: 10px; text-align: center;">
                             <canvas id="sigCanvas_<?= $index ?>" width="400" height="150" style="background: #fff; border: 1px solid var(--border-color); touch-action: none; max-width: 100%; border-radius: 4px;"></canvas>
                             <input type="hidden" name="data[<?= htmlspecialchars($fieldId) ?>]" id="sigInput_<?= $index ?>" data-is-required="<?= $isRequired ? 'true' : 'false' ?>" data-label="<?= htmlspecialchars($fieldName) ?>">
-                            <br><button type="button" class="btn" onclick="clearInspectionSignature(<?= $index ?>)" style="margin-top: 8px; padding: 6px 12px; background: var(--background); color: var(--text-main); font-weight: bold;">Vymazat podpis</button>
+                            <br><button type="button" class="btn" data-action="clearInspectionSignature" data-args="[<?= (int)$index ?>]" style="margin-top: 8px; padding: 6px 12px; background: var(--background); color: var(--text-main); font-weight: bold;">Vymazat podpis</button>
                         </div>
                     <?php else: ?>
                         <input type="text" name="data[<?= htmlspecialchars($fieldId) ?>]" <?= $requiredAttr ?> placeholder="Zadejte text...">

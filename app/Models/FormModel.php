@@ -34,6 +34,27 @@ class FormModel {
         return $stmt->execute([$title, $schemaJson, (int)$estimatedMinutes, (int)$id]);
     }
 
+    /**
+     * Kde všude je šablona použita v plánech údržby (aktivní zařízení).
+     * Vrací pole [template_id => [ ['rule_id'=>, 'asset_id'=>, 'asset_name'=>], ... ]].
+     * $assetFilter = SQL podmínka na tabulku assets (alias a), např. omezení na úseky uživatele.
+     */
+    public static function getUsageMap($assetFilter = '1=1') {
+        $pdo = Database::getConnection();
+        $rows = $pdo->query("
+            SELECT r.form_template_id, r.id AS rule_id, a.id AS asset_id, a.name AS asset_name
+            FROM asset_form_rules r
+            JOIN assets a ON r.asset_id = a.id
+            WHERE a.is_active = 1 AND ($assetFilter)
+            ORDER BY a.name ASC
+        ")->fetchAll();
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int)$row['form_template_id']][] = $row;
+        }
+        return $map;
+    }
+
     // SOFT DELETE: Místo fyzického smazání pouze skryjeme šablonu (historické záznamy zůstanou)
     public static function delete($id) {
         $pdo = Database::getConnection();

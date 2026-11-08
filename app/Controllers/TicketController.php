@@ -111,6 +111,15 @@ class TicketController {
             die("Bezpečnostní chyba: Tento tiket je již uzavřen a nelze jej přepsat.");
         }
         
+        // Podpis se zpracuje stejně jako fotky (ověření obrázku, limit velikosti) a uloží jako soubor
+        require_once APP_ROOT . '/app/Core/ImageProcessor.php';
+        $savedSignature = ImageProcessor::processBase64($signature, APP_ROOT . '/assets/uploads');
+        if (!$savedSignature) {
+            http_response_code(400);
+            die("Chyba: Podpis má neplatný formát.");
+        }
+        $signature = 'assets/uploads/' . basename($savedSignature);
+
         $savedPhotos = [];
         if (!empty($_POST['resolution_photos_base64']) && is_array($_POST['resolution_photos_base64'])) {
             require_once APP_ROOT . '/app/Core/ImageProcessor.php';

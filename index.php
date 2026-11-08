@@ -6,6 +6,9 @@ ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.cookie_secure', 1); // Striktní produkční politika: Session funguje pouze přes HTTPS
 
+// Soubory relace nesmí být smazány dřív, než vyprší absolutní limit aplikace (Auth::ABSOLUTE_TIMEOUT)
+ini_set('session.gc_maxlifetime', 43200);
+
 session_start();
 
 // -----------------------------------------------------------------------------
@@ -90,8 +93,13 @@ try {
 $page = $_GET['page'] ?? 'dashboard';
 
 if ($page === 'logout') {
-    Auth::logout();
-    header('Location: index.php?page=login');
+    // Odhlášení jen přes POST s platným CSRF tokenem (cizí stránka uživatele neodhlásí)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && Security::verifyToken($_POST['csrf_token'] ?? '')) {
+        Auth::logout();
+        header('Location: index.php?page=login');
+    } else {
+        header('Location: index.php?page=dashboard');
+    }
     exit;
 }
 
@@ -102,6 +110,9 @@ if ($page === 'login') {
     }
 
     $error = '';
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' && (Auth::$sessionExpired || isset($_GET['expired']))) {
+        $error = 'Přihlášení vypršelo z důvodu nečinnosti nebo uplynutí časového limitu. Přihlaste se prosím znovu.';
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
@@ -131,10 +142,14 @@ if ($page === 'login') {
 // 4. OCHRANA PŘÍSTUPU PRO NEPŘIHLÁŠENÉ NÁVŠTĚVNÍKY
 // -----------------------------------------------------------------------------
 if (!Auth::isLoggedIn()) {
+    // Po vypršení relace byla stará relace zrušena - otevřeme novou, aby se zachoval cílový odkaz
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
     if ($page !== 'dashboard') {
         $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
     }
-    header('Location: index.php?page=login');
+    header('Location: index.php?page=login' . (Auth::$sessionExpired ? '&expired=1' : ''));
     exit;
 }
 

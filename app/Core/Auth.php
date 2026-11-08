@@ -2,11 +2,39 @@
 
 class Auth {
 
+    // Časové limity relace (v sekundách)
+    const IDLE_TIMEOUT = 7200;      // 2 hodiny nečinnosti
+    const ABSOLUTE_TIMEOUT = 43200; // 12 hodin od přihlášení (jedna směna)
+
+    /** Nastaví se na true, pokud byla relace právě ukončena kvůli vypršení limitu. */
+    public static $sessionExpired = false;
+
+    // Omezení pokusů o přihlášení (v okně LOGIN_WINDOW_MINUTES)
+    const LOGIN_WINDOW_MINUTES = 15;
+    const MAX_FAILED_PER_IP_USER = 5; // špatná hesla pro jedno jméno z jedné IP
+    const MAX_FAILED_PER_IP = 30;     // všechna špatná hesla z jedné IP (vyšší kvůli sdílené NAT ve firmě)
+
+    // Platný hash náhodného hesla - slouží k vyrovnání doby odpovědi, když uživatel neexistuje
+    const DUMMY_HASH = '$2y$10$XL6XieZLHmuOZqelFtbxLeV/Kd2ed5ezwr1BCex0liD/zZaq9iwlO';
+
     /**
-     * Bezpečné zjištění IP adresy.
+     * Zjištění IP adresy klienta.
+     * Hlavička X-Forwarded-For se bere v úvahu jen tehdy, když požadavek přišel z privátní/lokální
+     * adresy (tj. přes reverzní proxy hostingu), a použije se poslední záznam, který přidala proxy.
+     * Přímý návštěvník si tak IP podvrhnout nemůže.
      */
     private static function getClientIp() {
-        return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $remote = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+        $isPublic = filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+        if (!$isPublic && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $parts = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            $candidate = end($parts);
+            if (filter_var($candidate, FILTER_VALIDATE_IP) !== false) {
+                return $candidate;
+            }
+        }
+        return $remote;
     }
     
     /**
@@ -16,27 +44,39 @@ class Auth {
         $pdo = Database::getConnection();
         
         $ip = self::getClientIp();
-        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $userAgent = mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 250);
+        $logName = mb_substr((string)$username, 0, 50); // sloupec login_logs.username má 50 znaků
 
-        // A) Lokální limit: 3 pokusy
+        // Občasné promazání starých záznamů, aby tabulka login_logs nerostla donekonečna
+        if (random_int(1, 100) === 1) {
+            $pdo->exec("DELETE FROM login_logs WHERE attempt_time < DATE_SUB(NOW(), INTERVAL 180 DAY)");
+        }
+
+        $window = (int)self::LOGIN_WINDOW_MINUTES;
+
+        // A) Limit pro dvojici IP + jméno. Po úspěšném přihlášení se počítají jen pozdější neúspěšné pokusy,
+        //    takže překlep v hesle nezačne odpočet znovu (a záznamy v bezpečnostním deníku zůstanou).
         $stmtTargeted = $pdo->prepare("
             SELECT COUNT(*) FROM login_logs 
             WHERE ip_address = ? AND username = ? AND status = 'failed' 
-            AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+            AND attempt_time > DATE_SUB(NOW(), INTERVAL $window MINUTE)
+            AND attempt_time >= COALESCE(
+                (SELECT MAX(s.attempt_time) FROM login_logs s WHERE s.ip_address = ? AND s.username = ? AND s.status = 'success'),
+                '1970-01-01 00:00:00')
         ");
-        $stmtTargeted->execute([$ip, $username]);
-        if ((int)$stmtTargeted->fetchColumn() >= 3) {
+        $stmtTargeted->execute([$ip, $logName, $ip, $logName]);
+        if ((int)$stmtTargeted->fetchColumn() >= self::MAX_FAILED_PER_IP_USER) {
             return 'blocked';
         }
 
-        // B) Globální limit: 15 pokusů
+        // B) Celkový limit pro IP adresu
         $stmtGlobal = $pdo->prepare("
             SELECT COUNT(*) FROM login_logs 
             WHERE ip_address = ? AND status = 'failed' 
-            AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+            AND attempt_time > DATE_SUB(NOW(), INTERVAL $window MINUTE)
         ");
         $stmtGlobal->execute([$ip]);
-        if ((int)$stmtGlobal->fetchColumn() >= 15) {
+        if ((int)$stmtGlobal->fetchColumn() >= self::MAX_FAILED_PER_IP) {
             return 'blocked';
         }
 
@@ -44,11 +84,19 @@ class Auth {
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
+        // Pro neexistující účet se ověří falešný hash, aby odpověď netrvala znatelně kratší
+        // a nešlo tak zjišťovat, která uživatelská jména existují.
+        if (!$user) {
+            password_verify((string)$password, self::DUMMY_HASH);
+        }
+
         if ($user && password_verify($password, $user['password'])) {
             $log = $pdo->prepare("INSERT INTO login_logs (ip_address, username, status, user_agent) VALUES (?, ?, 'success', ?)");
-            $log->execute([$ip, $username, $userAgent]);
+            $log->execute([$ip, $logName, $userAgent]);
 
             $_SESSION['user_id'] = $user['id'];
+            $_SESSION['login_at'] = time();
+            $_SESSION['last_activity'] = time();
             $_SESSION['username'] = $user['username'];
             $_SESSION['first_name'] = $user['first_name'];
             $_SESSION['last_name'] = $user['last_name'];
@@ -65,7 +113,7 @@ class Auth {
             return 'success';
         } else {
             $log = $pdo->prepare("INSERT INTO login_logs (ip_address, username, status, user_agent) VALUES (?, ?, 'failed', ?)");
-            $log->execute([$ip, $username, $userAgent]);
+            $log->execute([$ip, $logName, $userAgent]);
             
             return 'failed';
         }
@@ -91,6 +139,18 @@ class Auth {
             return false;
         }
         
+        // Vypršení relace: nečinnost nebo celková doba od přihlášení
+        $now = time();
+        $loginAt = $_SESSION['login_at'] ?? $now;
+        $lastActivity = $_SESSION['last_activity'] ?? $now;
+        if (($now - $lastActivity) > self::IDLE_TIMEOUT || ($now - $loginAt) > self::ABSOLUTE_TIMEOUT) {
+            self::logout();
+            self::$sessionExpired = true;
+            return false;
+        }
+        $_SESSION['login_at'] = $loginAt;
+        $_SESSION['last_activity'] = $now;
+
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare("SELECT role, is_active, force_password_change FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);

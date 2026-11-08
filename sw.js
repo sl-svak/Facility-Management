@@ -1,18 +1,18 @@
 // Zvyšte verzi při změně tohoto souboru nebo předkešovaných souborů.
-const CACHE_NAME = 'cmms-v2';
+const CACHE_NAME = 'cmms-v3';
 const PRECACHE = [
     'assets/css/style.css',
     'assets/js/app.js',
     'assets/icon-192.png'
 ];
 
-// Kešují se jen statické soubory. Stránky aplikace (index.php) a nahrané soubory
-// (?page=file, assets/uploads) obsahují soukromá data a nikdy se do cache nedávají.
+// Kešují se jen statické soubory z vlastního serveru. Stránky aplikace (index.php) a nahrané
+// soubory (?page=file, assets/uploads) obsahují soukromá data a nikdy se do cache nedávají.
+// Požadavky na cizí servery (např. Google Fonts) worker vůbec nezachytává: jeho fetch() by
+// podléhal CSP direktivě connect-src a byl by zablokován. Fonty tedy načítá přímo stránka.
 function isCacheable(url) {
-    if (url.origin === self.location.origin) {
-        return /\/assets\/(css|js)\//.test(url.pathname) || /\/assets\/(icon-\d+|favicon.*)\.(png|ico)$/.test(url.pathname);
-    }
-    return url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+    if (url.origin !== self.location.origin) return false;
+    return /\/assets\/(css|js)\//.test(url.pathname) || /\/assets\/(icon-\d+|favicon.*)\.(png|ico)$/.test(url.pathname);
 }
 
 self.addEventListener('install', (event) => {
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
         fetch(req)
             .then((res) => {
-                if (res && (res.ok || res.type === 'opaque')) {
+                if (res && res.ok) {
                     const copy = res.clone();
                     caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
                 }

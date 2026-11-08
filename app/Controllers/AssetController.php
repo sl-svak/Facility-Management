@@ -21,7 +21,8 @@ class AssetController {
         ]);
     }
 
-    // QR kód zařízení generovaný lokálně (TCPDF) - hash zařízení neopouští server
+    // Tisková stránka s QR kódem zařízení. QR se generuje lokálně (TCPDF) a vkládá přímo do HTML,
+    // takže hash zařízení neopouští server a nezávisí na dalším požadavku na obrázek.
     public static function qr() {
         $id = (int)($_GET['id'] ?? 0);
         $asset = AssetModel::getById($id);
@@ -40,15 +41,52 @@ class AssetController {
         $path = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
         $scanUrl = ($isHttps ? 'https://' : 'http://') . $host . $path . '/index.php?page=scan&hash=' . urlencode($asset['qr_hash']);
 
-        require_once APP_ROOT . '/app/tcpdf/tcpdf_barcodes_2d.php';
-        $barcode = new TCPDF2DBarcode($scanUrl, 'QRCODE,M');
-        $svg = $barcode->getBarcodeSVGcode(6, 6, 'black');
+        $svg = '';
+        try {
+            require_once APP_ROOT . '/app/tcpdf/tcpdf_barcodes_2d.php';
+            $barcode = new TCPDF2DBarcode($scanUrl, 'QRCODE,M');
+            $svg = (string)$barcode->getBarcodeSVGcode(6, 6, 'black');
+            // Odstraníme XML prolog a DOCTYPE (do HTML se vkládá jen element <svg>) a zajistíme škálování
+            $pos = strpos($svg, '<svg');
+            $svg = $pos !== false ? substr($svg, $pos) : '';
+            $svg = preg_replace('/<svg width="(\d+)" height="(\d+)"/', '<svg viewBox="0 0 $1 $2" shape-rendering="crispEdges"', $svg, 1);
+        } catch (Throwable $e) {
+            error_log('QR generování selhalo: ' . $e->getMessage());
+            $svg = '';
+        }
 
         while (ob_get_level()) { ob_end_clean(); }
-        header('Content-Type: image/svg+xml');
+        header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: private, no-store');
-        header('Content-Security-Policy: default-src \'none\'; style-src \'unsafe-inline\'');
-        echo $svg;
+        $name = htmlspecialchars($asset['name'], ENT_QUOTES, 'UTF-8');
+        ?>
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="utf-8">
+    <title>Tisk štítku: <?= $name ?></title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+        h2 { margin-bottom: 20px; color: #2c3e50; font-size: 24px; word-wrap: break-word; }
+        .qr { display: inline-block; background: #fff; border: 1px solid #ccc; padding: 10px; border-radius: 8px; }
+        .qr svg { width: 250px; height: 250px; display: block; }
+        .err { color: #c0392b; font-weight: bold; }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #2980b9; color: #fff; border: none; border-radius: 6px; margin-top: 20px; }
+        @media print { button { display: none; } }
+    </style>
+</head>
+<body>
+    <h2><?= $name ?></h2>
+    <?php if ($svg !== ''): ?>
+        <div class="qr"><?= $svg ?></div>
+        <br><button type="button" id="printBtn">&#128424; Vytisknout štítek</button>
+    <?php else: ?>
+        <p class="err">QR kód se nepodařilo vygenerovat. Zkontrolujte, že na serveru existuje složka app/tcpdf (soubor tcpdf_barcodes_2d.php) a chybový log.</p>
+    <?php endif; ?>
+    <script src="assets/js/print-page.js"></script>
+</body>
+</html>
+        <?php
         exit;
     }
 

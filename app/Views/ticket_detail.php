@@ -110,7 +110,7 @@
                 <div style="background: #e8f4f8; padding: 20px; border-radius: 8px; border: 1px solid #bce0ee;">
                     <h3 style="margin-top: 0; color: #2980b9;">Vyřešit závadu</h3>
                     
-                    <form method="POST" action="index.php?page=ticket_resolve" id="resolveForm" onsubmit="return validateResolution();">
+                    <form method="POST" action="index.php?page=ticket_resolve" id="resolveForm" data-submit="validateResolution">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="ticket_id" value="<?= htmlspecialchars($ticket['id'], ENT_QUOTES, 'UTF-8') ?>">
                         
@@ -123,10 +123,10 @@
                             <div id="photoPreview" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px;"></div>
                             
                             <div style="display: flex; gap: 10px;">
-                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addResolutionPhoto('camera')">
+                                <button type="button" class="btn btn-warning" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" data-action="addResolutionPhoto" data-args='["camera"]'>
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">photo_camera</span> Vyfotit
                                 </button>
-                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" onclick="addResolutionPhoto('gallery')">
+                                <button type="button" class="btn btn-info" style="flex: 1; padding: 12px 10px; font-weight: bold; border-radius: 6px;" data-action="addResolutionPhoto" data-args='["gallery"]'>
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">photo_library</span> Z galerie
                                 </button>
                             </div>
@@ -138,7 +138,7 @@
                         <div style="border: 1px solid #ccc; background: #fff; border-radius: 4px; margin-bottom: 10px;">
                             <canvas id="signatureCanvas" width="350" height="150" style="width: 100%; touch-action: none; cursor: crosshair;"></canvas>
                         </div>
-                        <button type="button" class="btn" onclick="clearSignature()" style="background: #95a5a6; padding: 6px 12px; font-size: 0.9em; margin-bottom: 15px;">Vymazat podpis</button>
+                        <button type="button" class="btn" data-action="clearSignature" style="background: #95a5a6; padding: 6px 12px; font-size: 0.9em; margin-bottom: 15px;">Vymazat podpis</button>
                         
                         <input type="hidden" name="resolution_signature" id="signatureInput">
                         

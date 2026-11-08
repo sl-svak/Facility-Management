@@ -21,7 +21,7 @@ class PlanController {
             JOIN asset_form_rules r ON l.rule_id = r.id
             JOIN assets a ON r.asset_id = a.id
             JOIN form_templates t ON r.form_template_id = t.id
-            WHERE $deptFilter
+            WHERE a.is_active = 1 AND t.is_active = 1 AND ($deptFilter)
             ORDER BY l.created_at DESC
         ");
         $history = $stmt->fetchAll();

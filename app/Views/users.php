@@ -45,7 +45,7 @@
         <div style="flex: 1; min-width: 200px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Organizační úseky</label>
             <div class="custom-dropdown" id="deptDropdown">
-                <button type="button" class="custom-dropdown-button" onclick="toggleDropdown()">
+                <button type="button" class="custom-dropdown-button" data-action="toggleDropdown">
                     <span id="dropdownTitle">-- Zvolte úseky --</span>
                     <span class="material-symbols-outlined" style="font-size: 1.2em;">arrow_drop_down</span>
                 </button>
@@ -55,7 +55,7 @@
                     </div>
                     <?php foreach ($departments ?? [] as $dep): ?>
                         <label>
-                            <input type="checkbox" name="departments[]" value="<?= htmlspecialchars($dep['id'], ENT_QUOTES, 'UTF-8') ?>" style="margin-right: 8px;" onchange="updateDropdownText()"> 
+                            <input type="checkbox" name="departments[]" value="<?= htmlspecialchars($dep['id'], ENT_QUOTES, 'UTF-8') ?>" style="margin-right: 8px;" data-change="updateDropdownText"> 
                             <?= htmlspecialchars($dep['name'], ENT_QUOTES, 'UTF-8') ?>
                         </label>
                     <?php endforeach; ?>
@@ -131,7 +131,7 @@
                                     <form method="POST" action="index.php?page=user_delete" style="display: inline; margin: 0;">
                                     <?= Security::csrfField() ?>
                                     <input type="hidden" name="id" value="<?= $u['id'] ?>">
-                                    <button type="submit" onclick="return confirm('Opravdu chcete tohoto uživatele smazat?');" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Smazat uživatele">
+                                    <button type="submit" data-confirm="Opravdu chcete tohoto uživatele smazat?" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Smazat uživatele">
                                         <span class="material-symbols-outlined" style="vertical-align: middle;">delete</span> Smazat
                                     </button>
                                 </form>

@@ -71,6 +71,13 @@ try {
         }
     }
     
+    // C) Úklid plánů údržby, které zůstaly po smazaných (neaktivních) šablonách formulářů
+    try {
+        $pdo->exec("DELETE r FROM asset_form_rules r JOIN form_templates t ON r.form_template_id = t.id WHERE t.is_active = 0");
+    } catch (PDOException $e) {
+        error_log("CMMS Update: úklid osiřelých plánů selhal: " . $e->getMessage());
+    }
+
     $message = "Databáze a výkonnostní indexy byly úspěšně aktualizovány.";
 
     // -----------------------------------------------------------------------------

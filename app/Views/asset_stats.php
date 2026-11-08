@@ -1,6 +1,7 @@
 <?php if (!defined('APP_ROOT')) exit; ?>
 <!-- Načtení knihovny pro vykreslování grafů -->
-<script src="https://cdn.jsdelivr.net/npm/apexcharts@8.8.0/dist/apexcharts.min.js" integrity="sha384-CI+n6IgfcbxZwiOPoWBZPlJJexTa8mRT4m/L7zZ0PgERTsr8M0xnT/8Z0LZWQVhM" crossorigin="anonymous"></script>
+<script src="assets/js/vendor/chart.umd.js"></script>
+<script src="assets/js/page-stats.js?v=<?= filemtime(APP_ROOT . '/assets/js/page-stats.js') ?>"></script>
 
 <div class="card card-primary-top">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -22,11 +23,11 @@
     <?php else: ?>
         <!-- 
             Zde posíláme PHP pole $chartData jako JSON atribut, 
-            aby si jej mohl přečíst náš globální JavaScript (app.js) 
+            aby si jej mohl přečíst page-stats.js 
         -->
         <div class="charts-grid" id="analytics-charts-container" data-charts="<?= htmlspecialchars(json_encode($chartData, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
             <?php $chartIndex = 0; foreach ($chartData as $key => $c): $chartIndex++; ?>
-                <div class="chart-card">
+                <div class="chart-card" data-chart-key="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
                         <h4 style="margin: 0; color: var(--text-main); font-size: 1.1em;">
                             <?= htmlspecialchars($c['title']) ?>
@@ -38,8 +39,8 @@
                         <?php endif; ?>
                     </div>
                     
-                    <!-- Prázdný div, do kterého JS (app.js) vykreslí graf -->
-                    <div id="chart-<?= $chartIndex ?>"></div>
+                    <!-- Plátno, na které page-stats.js vykreslí graf (Chart.js) -->
+                    <div class="chart-box"><canvas></canvas></div>
                 </div>
             <?php endforeach; ?>
         </div>

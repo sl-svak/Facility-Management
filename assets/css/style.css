@@ -369,16 +369,5 @@ body.theme-dark .badge-closed { background: #153820; color: #a8deb8; }
     font-size: 0.8em; 
     font-weight: bold; 
 }
-/* Úprava tooltipu pro grafy v tmavém režimu */
-body.theme-dark .apexcharts-tooltip, 
-body:not(.theme-light) .apexcharts-tooltip {
-    background: var(--card-bg) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-main) !important;
-}
-body.theme-dark .apexcharts-tooltip-title, 
-body:not(.theme-light) .apexcharts-tooltip-title {
-    background: rgba(0,0,0,0.2) !important;
-    border-bottom: 1px solid var(--border-color) !important;
-}
+.chart-box { position: relative; height: 300px; }
 

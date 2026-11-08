@@ -123,5 +123,12 @@ $bodyClassString = implode(' ', $bodyClasses);
 
     <!-- PŘIDÁNO: Načtení globálního JavaScriptu pro celý systém -->
     <script src="assets/js/app.js?v=<?= filemtime('assets/js/app.js') ?>"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('sw.js').catch(function () {});
+            });
+        }
+    </script>
 </body>
 </html>

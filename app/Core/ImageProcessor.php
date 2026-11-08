@@ -16,8 +16,18 @@ class ImageProcessor {
             return false;
         }
 
-        $decodedData = base64_decode($data);
+        // Ochrana paměti: max ~12 MB dekódovaných dat
+        if (strlen($data) > 16 * 1024 * 1024) {
+            return false;
+        }
+        $decodedData = base64_decode($data, true);
         if ($decodedData === false) {
+            return false;
+        }
+
+        // Ochrana proti "decompression bomb": rozměry zjistíme ještě před dekódováním do paměti
+        $size = @getimagesizefromstring($decodedData);
+        if ($size === false || $size[0] * $size[1] > 40000000) {
             return false;
         }
 

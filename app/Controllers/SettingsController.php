@@ -21,7 +21,13 @@ class SettingsController {
             $pdo = Database::getConnection();
             
             // Uložení textových nastavení
-            $settings = $_POST['settings'] ?? [];
+            $allowedKeys = ['app_name', 'app_font', 'force_https', 'shift_start_hour', 'workweek_days'];
+            $settings = [];
+            foreach ((array)($_POST['settings'] ?? []) as $k => $v) {
+                if (in_array($k, $allowedKeys, true) && is_scalar($v)) {
+                    $settings[$k] = (string)$v;
+                }
+            }
             
             // Zajistíme uložení checkboxu HTTPS (pokud není zaškrtnut, POST ho vůbec nepošle)
             if (!isset($settings['force_https'])) {

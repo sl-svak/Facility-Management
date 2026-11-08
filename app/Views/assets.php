@@ -125,9 +125,13 @@ function printQrCode(qrUrl, assetName) {
 									<span class="material-symbols-outlined" style="vertical-align: middle;">edit</span> Upravit
 								</a>
 
-                                <a href="index.php?page=asset_delete&id=<?= $a['id'] ?>" onclick="return confirm('Opravdu chcete zařízení vyřadit? Historie údržby zůstane zachována.');" style="color: var(--danger); text-decoration: none;" title="Vyřadit zařízení">
-                                    <span class="material-symbols-outlined" style="vertical-align: middle;">delete</span> Smazat
-                                </a>
+                                <form method="POST" action="index.php?page=asset_delete" style="display: inline; margin: 0;">
+                                    <?= Security::csrfField() ?>
+                                    <input type="hidden" name="id" value="<?= $a['id'] ?>">
+                                    <button type="submit" onclick="return confirm('Opravdu chcete zařízení vyřadit? Historie údržby zůstane zachována.');" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Vyřadit zařízení">
+                                        <span class="material-symbols-outlined" style="vertical-align: middle;">delete</span> Smazat
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>

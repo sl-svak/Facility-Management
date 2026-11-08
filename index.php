@@ -11,9 +11,11 @@ session_start();
 // -----------------------------------------------------------------------------
 // 0. NASTAVENÍ ZOBRAZOVÁNÍ CHYB (Produkční režim)
 // -----------------------------------------------------------------------------
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(0);
+// Chyby se nezobrazují uživateli, ale zapisují se do logu serveru.
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+ini_set('log_errors', 1);
 
 // 1. Kontrola konfigurace (Instalátor)
 $configFile = __DIR__ . '/config/config.php';
@@ -149,20 +151,16 @@ if (Auth::isLoggedIn() && !empty($_SESSION['force_password_change']) && !in_arra
 // -----------------------------------------------------------------------------
 $host = $_SERVER['HTTP_HOST'] ?? '';
 
-// A) Ochrana destruktivních GET požadavků (např. mazání přes URL odkaz) pomocí Refereru
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && strpos($page, '_delete') !== false) {
-    $referer = $_SERVER['HTTP_REFERER'] ?? '';
-    if (empty($referer) || strpos($referer, $host) === false) {
-        http_response_code(403);
-        die('Bezpečnostní omezení (CSRF): Položky nelze mazat přímým přístupem z externího odkazu nebo bez kontextu.');
-    }
-}
+// A) Destruktivní akce (mazání) jsou výhradně POST s CSRF tokenem – GET variantu již nepodporujeme.
 
 // B) Klasická kontrola POST požadavků (Token + Origin)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
     
-    if (!empty($origin) && strpos($origin, $host) === false) {
+    $originHost = $origin !== '' ? parse_url($origin, PHP_URL_HOST) : null;
+    $originPort = $origin !== '' ? parse_url($origin, PHP_URL_PORT) : null;
+    $originAuthority = $originHost !== null && $originHost !== false ? $originHost . ($originPort ? ':' . $originPort : '') : '';
+    if ($origin !== '' && strcasecmp($originAuthority, $host) !== 0) {
         http_response_code(403);
         die('Bezpečnostní chyba: Neplatný původ požadavku (Cross-Origin).');
     }
@@ -229,7 +227,7 @@ switch ($page) {
     
     case 'departments':        Auth::requireRole(['admin', 'manager']); DepartmentController::index(); break;
     case 'department_create':  Auth::requireRole(['admin', 'manager']); DepartmentController::create(); break;
-    case 'department_delete':  Auth::requireRole(['admin', 'manager']); DepartmentController::delete(); break;
+    case 'department_delete':  Auth::requireRole('admin'); DepartmentController::delete(); break;
     
     case 'forms':           Auth::requireRole(['admin', 'manager']); FormController::index(); break;
     case 'form_create':     Auth::requireRole(['admin', 'manager']); FormController::create(); break;

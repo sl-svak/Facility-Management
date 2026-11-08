@@ -49,7 +49,7 @@ class UserModel {
         try {
             $pdo->beginTransaction();
             if (!empty($password)) {
-                $stmt = $pdo->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, role = ?, password = ? WHERE id = ?");
+                $stmt = $pdo->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, role = ?, password = ?, force_password_change = 1 WHERE id = ?");
                 $stmt->execute([$firstName, $lastName, $email, $role, password_hash($password, PASSWORD_DEFAULT), (int)$id]);
             } else {
                 $stmt = $pdo->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, role = ? WHERE id = ?");

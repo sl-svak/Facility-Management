@@ -1,5 +1,11 @@
 <?php if (!defined('APP_ROOT')) exit; ?>
 
+<?php if (($_GET['error'] ?? '') === 'not_empty'): ?>
+    <div class="card" style="border-left: 4px solid var(--danger); margin-bottom: 20px; color: var(--danger);">
+        Úsek nelze smazat, dokud jsou k němu přiřazena zařízení. Nejprve je přesuňte do jiného úseku.
+    </div>
+<?php endif; ?>
+
 <div class="grid-2">
     <!-- Formulář pro vytvoření úseku -->
     <div class="card card-primary-top">
@@ -45,9 +51,15 @@
                                 <td style="color: var(--text-muted);">#<?= $d['id'] ?></td>
                                 <td style="font-weight: bold; color: var(--primary);"><?= htmlspecialchars($d['name']) ?></td>
                                 <td style="text-align: right;">
-                                    <a href="index.php?page=department_delete&id=<?= $d['id'] ?>" onclick="return confirm('Opravdu chcete smazat tento úsek? Stroje a uživatelé zařazeni v tomto úseku nebudou smazáni, pouze přejdou do stavu \'Bez úseku\'.');" style="color: var(--danger); text-decoration: none;" title="Smazat úsek">
+                                    <?php if (Auth::isAdmin()): ?>
+                                    <form method="POST" action="index.php?page=department_delete" style="display: inline; margin: 0;">
+                                    <?= Security::csrfField() ?>
+                                    <input type="hidden" name="id" value="<?= $d['id'] ?>">
+                                    <button type="submit" onclick="return confirm('Opravdu chcete smazat tento úsek? Smazat jde jen úsek bez zařízení.');" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Smazat úsek">
                                         <span class="material-symbols-outlined" style="vertical-align: middle;">delete</span> Smazat
-                                    </a>
+                                    </button>
+                                </form>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

@@ -18,29 +18,33 @@ class FileController {
             http_response_code(404); die("Soubor nenalezen.");
         }
 
-        $relativePath = 'assets/uploads/' . $safeFilename;
         $pdo = Database::getConnection();
-        
-        // Dohledání asset_id podle výskytu souboru v JSON datech, textech, nebo v budoucnu v revizích
-        $stmt = $pdo->prepare("
-            SELECT asset_id FROM inspections WHERE data_json LIKE ? 
-            UNION 
-            SELECT asset_id FROM tickets WHERE resolution_photos LIKE ? OR resolution_signature LIKE ?
-            /* PŘÍPRAVA PRO MODUL REVIZÍ - ZATÍM ZAKOMENTOVÁNO, DOKUD NEBUDOU TABULKY:
-            UNION
-            SELECT p.asset_id FROM external_audit_records r JOIN external_audit_plans p ON r.plan_id = p.id WHERE r.protocol_file LIKE ?
-            */
-            LIMIT 1
-        ");
-        $searchParam = '%' . $safeFilename . '%';
-        
-        // Až odkomentuješ revize, přidej do pole execute čtvrtý $searchParam
-        $stmt->execute([$searchParam, $searchParam, $searchParam]);
-        $asset_id = $stmt->fetchColumn();
 
-        // Pokud je soubor spárován se zařízením, ověříme přístup. 
-        if (!$asset_id || !Auth::canAccessAsset($asset_id)) {
-            http_response_code(403); die("Bezpečnostní chyba: Nemáte oprávnění k zobrazení tohoto souboru.");
+        // Dohledání VŠECH zařízení, ke kterým je soubor přiřazen (přesná shoda názvu v uvozovkách).
+        // Přístup je povolen jen tehdy, když má uživatel právo ke každému z nich - zabrání to
+        // "podvržení" cizího názvu souboru do vlastní revize.
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $safeFilename);
+        $quoted  = '%' . $escaped . '"%';
+        $suffix  = '%' . $escaped;
+        $stmt = $pdo->prepare("
+            SELECT asset_id FROM inspections WHERE data_json LIKE ?
+            UNION
+            SELECT asset_id FROM tickets WHERE resolution_photos LIKE ? OR resolution_signature LIKE ?
+        ");
+        $stmt->execute([$quoted, $quoted, $suffix]);
+        $assetIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($assetIds)) {
+            // Soubor není k ničemu přiřazen (osiřelý) - smí ho vidět jen administrátor.
+            if (!Auth::isAdmin()) {
+                http_response_code(403); die("Bezpečnostní chyba: Nemáte oprávnění k zobrazení tohoto souboru.");
+            }
+        } else {
+            foreach ($assetIds as $assetId) {
+                if (!Auth::canAccessAsset($assetId)) {
+                    http_response_code(403); die("Bezpečnostní chyba: Nemáte oprávnění k zobrazení tohoto souboru.");
+                }
+            }
         }
 
         $extension = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));

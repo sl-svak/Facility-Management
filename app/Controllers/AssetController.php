@@ -29,12 +29,12 @@ class AssetController {
             $department_id = !empty($_POST['department_id']) ? (int)$_POST['department_id'] : null;
             
             // BEZPEČNOSTNÍ ZÁMEK: Manažer může přidělovat stroje jen do svých úseků
-            if ($department_id !== null && !Auth::isAdmin()) {
+            if (!Auth::isAdmin()) {
                 $currentUser = UserModel::getById($_SESSION['user_id']);
                 $userDepts = $currentUser['departments'] ?? [];
-                if (!in_array($department_id, $userDepts)) {
+                if ($department_id === null || !in_array($department_id, $userDepts)) {
                     http_response_code(403);
-                    die("Bezpečnostní chyba: Nemáte oprávnění přiřadit zařízení do tohoto úseku.");
+                    die("Bezpečnostní chyba: Zařízení musí být přiřazeno do vašeho úseku.");
                 }
             }
             
@@ -97,10 +97,10 @@ class AssetController {
                 }
                 
                 // 2. BEZPEČNOSTNÍ ZÁMEK: Zkontrolujeme, zda stroj nepřesouvá do cizího úseku
-                if ($department_id !== null && !Auth::isAdmin()) {
+                if (!Auth::isAdmin()) {
                     $currentUser = UserModel::getById($_SESSION['user_id']);
                     $userDepts = $currentUser['departments'] ?? [];
-                    if (!in_array($department_id, $userDepts)) {
+                    if ($department_id === null || !in_array($department_id, $userDepts)) {
                         http_response_code(403);
                         die("Bezpečnostní chyba: Nemáte oprávnění přesunout zařízení do cizího úseku.");
                     }

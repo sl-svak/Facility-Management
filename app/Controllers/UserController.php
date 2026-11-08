@@ -102,6 +102,16 @@ class UserController {
             $role       = $_POST['role'] ?? 'technician';
             $departments = $_POST['departments'] ?? [];
 
+            if (!in_array($role, ['admin', 'manager', 'technician'], true)) {
+                $role = 'technician';
+            }
+            $policy = Auth::validatePasswordPolicy($password);
+            if ($policy !== true) {
+                header('Location: index.php?page=users&error=' . urlencode($policy));
+                exit;
+            }
+            $departments = is_array($departments) ? $departments : [];
+
             if (!empty($username) && !empty($password) && !empty($firstName) && !empty($lastName)) {
                 UserModel::create($username, $password, $firstName, $lastName, $role, $email, $departments);
             }
@@ -137,6 +147,34 @@ class UserController {
             $role       = $_POST['role'] ?? 'technician';
             $password   = $_POST['password'] ?? '';
             $departments = $_POST['departments'] ?? [];
+
+            if (!in_array($role, ['admin', 'manager', 'technician'], true)) {
+                $role = 'technician';
+            }
+            $departments = is_array($departments) ? $departments : [];
+
+            if ($password !== '') {
+                $policy = Auth::validatePasswordPolicy($password);
+                if ($policy !== true) {
+                    header('Location: index.php?page=users&error=' . urlencode($policy));
+                    exit;
+                }
+            }
+
+            // Ochrana posledního aktivního administrátora před odebráním role
+            if ($id > 0 && $role !== 'admin') {
+                $pdo = Database::getConnection();
+                $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+                $stmt->execute([$id]);
+                if ($stmt->fetchColumn() === 'admin') {
+                    $others = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1 AND id != ?");
+                    $others->execute([$id]);
+                    if ((int)$others->fetchColumn() === 0) {
+                        header('Location: index.php?page=users&error=' . urlencode('Nelze odebrat roli poslednímu administrátorovi.'));
+                        exit;
+                    }
+                }
+            }
 
             if ($id > 0 && !empty($firstName) && !empty($lastName)) {
                 UserModel::update($id, $firstName, $lastName, $email, $role, $password, $departments);

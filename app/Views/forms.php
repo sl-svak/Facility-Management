@@ -91,7 +91,13 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
                         </div>
                         <div style="display: flex; gap: 15px;">
                             <a href="index.php?page=forms&edit_id=<?= $tpl['id'] ?>" style="color: var(--info); text-decoration: none;"><span class="material-symbols-outlined">edit</span></a>
-                            <a href="index.php?page=form_delete&id=<?= $tpl['id'] ?>" onclick="return confirm('Opravdu smazat tuto šablonu? Záznamy již vyplněné podle této šablony zůstanou zachovány.');" style="color: var(--danger); text-decoration: none;"><span class="material-symbols-outlined">delete</span></a>
+                            <form method="POST" action="index.php?page=form_delete" style="display: inline; margin: 0;">
+                                    <?= Security::csrfField() ?>
+                                    <input type="hidden" name="id" value="<?= $tpl['id'] ?>">
+                                    <button type="submit" onclick="return confirm('Opravdu smazat tuto šablonu? Záznamy již vyplněné podle této šablony zůstanou zachovány.');" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Smazat šablonu">
+                                        <span class="material-symbols-outlined">delete</span>
+                                    </button>
+                                </form>
                         </div>
                     </li>
                 <?php endforeach; ?>

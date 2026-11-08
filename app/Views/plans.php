@@ -82,9 +82,14 @@
                                     <span class="material-symbols-outlined" style="font-size: 1.2em; vertical-align: middle;">edit</span> Upravit
                                 </button>
                                 
-                                <a href="index.php?page=plan_delete&id=<?= $r['id'] ?>" onclick="return confirm('Opravdu chcete tento plán smazat? Přestanou se generovat kontroly.');" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.9em; text-decoration: none;">
-                                    <span class="material-symbols-outlined" style="font-size: 1.2em; vertical-align: middle;">delete</span>
-                                </a>
+                                <!-- OPRAVA: Mazání bezpečně přes POST formulář -->
+                                <form method="POST" action="index.php?page=plan_delete" style="display: inline-block; margin: 0;">
+                                    <?= Security::csrfField() ?>
+                                    <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                                    <button type="submit" onclick="return confirm('Opravdu chcete tento plán smazat? Přestanou se generovat kontroly.');" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.9em; border: none; cursor: pointer;">
+                                        <span class="material-symbols-outlined" style="font-size: 1.2em; vertical-align: middle;">delete</span>
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -104,7 +109,6 @@
             <!-- OCHRANA CSRF -->
             <?= Security::csrfField() ?>
 
-            <!-- Tady chyběla patřičná ID atributy pro JavaScript! -->
             <input type="hidden" name="id" id="edit_id">
             
             <div style="display: flex; gap: 15px; margin-bottom: 15px;">
@@ -167,3 +171,14 @@
         <?php endif; ?>
     </div>
 </div>
+
+<!-- OPRAVA: Doplněn chybějící JavaScript pro zobrazení editačního okna -->
+<script>
+function openEditModal(id, period, warning, assetName) {
+    document.getElementById('edit_id').value = id;
+    document.getElementById('edit_period').value = period;
+    document.getElementById('edit_warning').value = warning;
+    document.getElementById('editAssetName').textContent = assetName;
+    document.getElementById('editModal').style.display = 'flex';
+}
+</script>

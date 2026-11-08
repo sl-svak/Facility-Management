@@ -68,35 +68,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 // ==========================================
-// FUNKCE: PODPISOVA PLATNA (Univerzalni jadro)
+// FUNKCE: PODPISOVA PLATNA (Univerzalni jadro s opravou kurzoru)
 // ==========================================
 function initSignaturePad(canvas, inputId) {
     const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = '#0000cd'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     let drawing = false;
 
     function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
         const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
+        if (canvas.width > 0) tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
         canvas.width = rect.width * ratio;
         canvas.height = rect.height * ratio;
-        ctx.scale(ratio, ratio);
-        ctx.lineWidth = 2;
+
+        ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2 * ratio;
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.strokeStyle = '#0000cd';
     }
+
     window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 150);
     resizeCanvas();
 
     const getPos = (e) => {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
+        
+        return { 
+            x: (clientX - rect.left) * (canvas.width / rect.width), 
+            y: (clientY - rect.top) * (canvas.height / rect.height) 
+        };
     };
 
-    const start = (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); e.preventDefault(); };
-    const move = (e) => { if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); };
+    const start = (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); if(e.cancelable) e.preventDefault(); };
+    const move = (e) => { if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); if(e.cancelable) e.preventDefault(); };
     const stop = () => { 
         if (drawing) { 
             drawing = false; 
@@ -138,7 +152,6 @@ async function addResolutionPhoto(source) {
     fileInput.onchange = async function() {
         if (this.files && this.files.length > 0) {
             const previewContainer = document.getElementById('photoPreview');
-            const inputsContainer = document.getElementById('hiddenPhotoInputs');
             
             for(let i=0; i < this.files.length; i++) {
                 let file = this.files[i];
@@ -263,7 +276,6 @@ async function addPhotoInput(index, fieldId, source) {
     fileInput.onchange = async function() {
         if (this.files && this.files.length > 0) {
             const previewContainer = document.getElementById('preview_' + index);
-            const inputsContainer = document.getElementById('inputs_' + index);
             const loadingIndicator = document.getElementById('loading_' + index);
             
             for(let i=0; i < this.files.length; i++) {
@@ -441,15 +453,12 @@ function updateDropdownText() {
     if (checkboxes.length === 0) {
         title.textContent = "-- Zvolte úseky --";
     } else if (checkboxes.length === 1) {
-        // Zobrazíme název jednoho vybraného úseku
         title.textContent = checkboxes[0].parentElement.textContent.trim();
     } else {
-        // Zobrazíme počet vybraných
         title.textContent = "Vybráno úseků: " + checkboxes.length;
     }
 }
 
-// Automatické zavření roletky, pokud uživatel klikne někam jinam na stránku
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.custom-dropdown')) {
         document.querySelectorAll('.custom-dropdown.active').forEach(dropdown => {

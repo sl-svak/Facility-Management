@@ -2,13 +2,15 @@
 class PlanModel {
     
     // Načte všechna aktivní pravidla pro údržbu včetně názvů zařízení a šablon
-    public static function getAll() {
+    // $deptFilter: SQL podmínka z Auth::getDepartmentSqlFilter('a') (omezení na úseky uživatele)
+    public static function getAll($deptFilter = '1=1') {
         $pdo = Database::getConnection();
         $sql = "
             SELECT r.id, a.name as asset_name, t.title as template_name, r.period_days, r.warning_days 
             FROM asset_form_rules r
             JOIN assets a ON r.asset_id = a.id
             JOIN form_templates t ON r.form_template_id = t.id
+            WHERE $deptFilter
             ORDER BY a.name ASC
         ";
         return $pdo->query($sql)->fetchAll();

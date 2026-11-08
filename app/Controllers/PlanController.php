@@ -2,9 +2,16 @@
 class PlanController {
     
     public static function index() {
-        $assets = AssetModel::getAll();
+        $deptFilter = Auth::getDepartmentSqlFilter('a');
+        if (Auth::isAdmin()) {
+            $assets = AssetModel::getAll();
+        } else {
+            $currentUser = UserModel::getById($_SESSION['user_id']);
+            $userDepts = $currentUser['departments'] ?? [];
+            $assets = empty($userDepts) ? [] : AssetModel::getAll($userDepts);
+        }
         $templates = FormModel::getAll();
-        $rules = PlanModel::getAll();
+        $rules = PlanModel::getAll($deptFilter);
         
         $pdo = Database::getConnection();
         $stmt = $pdo->query("
@@ -14,6 +21,7 @@ class PlanController {
             JOIN asset_form_rules r ON l.rule_id = r.id
             JOIN assets a ON r.asset_id = a.id
             JOIN form_templates t ON r.form_template_id = t.id
+            WHERE $deptFilter
             ORDER BY l.created_at DESC
         ");
         $history = $stmt->fetchAll();

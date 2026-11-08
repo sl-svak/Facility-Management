@@ -1,5 +1,11 @@
 <?php if (!defined('APP_ROOT')) exit; ?>
 
+<?php if (!empty($_GET['error'])): ?>
+    <div class="card" style="border-left: 4px solid var(--danger); margin-bottom: 20px; color: var(--danger);">
+        <?= htmlspecialchars($_GET['error'], ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
+
 <!-- Formulář pro vytvoření nového uživatele -->
 <div class="card card-primary-top">
     <h3 style="margin-top:0;"><span class="material-symbols-outlined" style="vertical-align: middle;">person_add</span> Přidat nového uživatele</h3>
@@ -122,9 +128,13 @@
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">edit</span> Upravit
                                 </a>
                                 <?php if ($u['id'] != $_SESSION['user_id']): ?>
-                                    <a href="index.php?page=user_delete&id=<?= $u['id'] ?>" onclick="return confirm('Opravdu chcete tohoto uživatele smazat?');" style="color: var(--danger); text-decoration: none;" title="Smazat uživatele">
+                                    <form method="POST" action="index.php?page=user_delete" style="display: inline; margin: 0;">
+                                    <?= Security::csrfField() ?>
+                                    <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                                    <button type="submit" onclick="return confirm('Opravdu chcete tohoto uživatele smazat?');" style="background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--danger);" title="Smazat uživatele">
                                         <span class="material-symbols-outlined" style="vertical-align: middle;">delete</span> Smazat
-                                    </a>
+                                    </button>
+                                </form>
                                 <?php else: ?>
                                     <span style="color: #aaa; font-style: italic; font-size: 0.85em;">(Přihlášen)</span>
                                 <?php endif; ?>

@@ -12,22 +12,22 @@ $baseUrl = $protocol . $host . $path;
 <script>
 function printQrCode(qrUrl, assetName) {
     var win = window.open('', '_blank', 'width=400,height=550');
-    win.document.write('<!DOCTYPE html><html><head><title>Tisk štítku: ' + assetName + '</title>');
-    win.document.write('<style>');
-    win.document.write('body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }');
-    win.document.write('h2 { margin-bottom: 20px; color: #2c3e50; font-size: 24px; word-wrap: break-word; }');
-    win.document.write('img { max-width: 100%; height: auto; border: 1px solid #ccc; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }');
-    win.document.write('button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #2980b9; color: white; border: none; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 20px; }');
-    win.document.write('button:hover { background: #3498db; }');
-    win.document.write('@media print { button { display: none; } }'); // Skryje tlačítko při samotném tisku
-    win.document.write('</style></head><body>');
-    
-    win.document.write('<h2>' + assetName + '</h2>');
-    win.document.write('<img src="' + qrUrl + '" alt="QR Kód">');
-    win.document.write('<br><button onclick="window.print()">🖨️ Vytisknout štítek</button>');
-    
-    win.document.write('</body></html>');
-    win.document.close();
+    if (!win) return;
+    var doc = win.document;
+    doc.open();
+    doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title></title><style>' +
+        'body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }' +
+        'h2 { margin-bottom: 20px; color: #2c3e50; font-size: 24px; word-wrap: break-word; }' +
+        'img { width: 250px; height: 250px; background: #fff; border: 1px solid #ccc; padding: 10px; border-radius: 8px; }' +
+        'button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #2980b9; color: white; border: none; border-radius: 6px; margin-top: 20px; }' +
+        '@media print { button { display: none; } }' +
+        '</style></head><body><h2></h2><img alt="QR Kód"><br><button>🖨️ Vytisknout štítek</button></body></html>');
+    doc.close();
+    // Název se vkládá jako text (ne jako HTML), takže nelze vložit škodlivý kód
+    doc.title = 'Tisk štítku: ' + assetName;
+    doc.querySelector('h2').textContent = assetName;
+    doc.querySelector('img').src = new URL(qrUrl, window.location.href).href;
+    doc.querySelector('button').onclick = function () { win.print(); };
 }
 </script>
 
@@ -87,8 +87,8 @@ function printQrCode(qrUrl, assetName) {
                         <?php 
                             // Odkaz přímo na mobilní formulář tohoto stroje (včetně zabezpečovacího hashe)
                             $scanUrl = $baseUrl . "/index.php?page=scan&hash=" . $a['qr_hash'];
-                            // Generování obrázku QR kódu z odkazu (přes zdarma dostupné API)
-                            $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" . urlencode($scanUrl);
+                            // QR kód generuje server lokálně (hash zařízení neodchází třetí straně)
+                            $qrApiUrl = "index.php?page=asset_qr&id=" . (int)$a['id'];
                         ?>
                         <tr>
                             <td style="color: var(--text-muted);">#<?= $a['id'] ?></td>
@@ -117,7 +117,7 @@ function printQrCode(qrUrl, assetName) {
                                 </a>
                                 
                                 <!-- UPRAVENÉ TLAČÍTKO PRO TISK QR KÓDU S NÁZVEM -->
-                                <a href="#" onclick="printQrCode('<?= $qrApiUrl ?>', '<?= htmlspecialchars(addslashes($a['name'])) ?>'); return false;" style="color: var(--success); text-decoration: none; margin-right: 15px;" title="Vytisknout QR kód k nalepení">
+                                <a href="#" onclick="printQrCode(<?= htmlspecialchars(json_encode($qrApiUrl), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($a['name']), ENT_QUOTES, 'UTF-8') ?>); return false;" style="color: var(--success); text-decoration: none; margin-right: 15px;" title="Vytisknout QR kód k nalepení">
                                     <span class="material-symbols-outlined" style="vertical-align: middle;">qr_code_2</span> Zobrazit QR kód
                                 </a>
                                 

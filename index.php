@@ -222,6 +222,7 @@ switch ($page) {
     case 'assets':          Auth::requireRole(['admin', 'manager']); AssetController::index(); break;
     case 'asset_create':    Auth::requireRole(['admin', 'manager']); AssetController::create(); break;
     case 'asset_delete':    Auth::requireRole(['admin', 'manager']); AssetController::delete(); break;
+    case 'asset_qr':        Auth::requireRole(['admin', 'manager']); AssetController::qr(); break;
     case 'asset_edit':      Auth::requireRole(['admin', 'manager']); AssetController::edit(); break;
     case 'asset_update':    Auth::requireRole(['admin', 'manager']); AssetController::update(); break;
     

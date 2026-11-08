@@ -21,6 +21,37 @@ class AssetController {
         ]);
     }
 
+    // QR kód zařízení generovaný lokálně (TCPDF) - hash zařízení neopouští server
+    public static function qr() {
+        $id = (int)($_GET['id'] ?? 0);
+        $asset = AssetModel::getById($id);
+        if (!$asset || !Auth::canAccessAsset($id)) {
+            http_response_code(403);
+            die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
+        }
+
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        if (!preg_match('/^[a-zA-Z0-9.-]+(:\d+)?$/', $host)) {
+            http_response_code(400);
+            die('Neplatná hlavička Host.');
+        }
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? '') == 443
+            || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+        $path = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
+        $scanUrl = ($isHttps ? 'https://' : 'http://') . $host . $path . '/index.php?page=scan&hash=' . urlencode($asset['qr_hash']);
+
+        require_once APP_ROOT . '/app/tcpdf/tcpdf_barcodes_2d.php';
+        $barcode = new TCPDF2DBarcode($scanUrl, 'QRCODE,M');
+        $svg = $barcode->getBarcodeSVGcode(6, 6, 'black');
+
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: image/svg+xml');
+        header('Cache-Control: private, no-store');
+        header('Content-Security-Policy: default-src \'none\'; style-src \'unsafe-inline\'');
+        echo $svg;
+        exit;
+    }
+
     // 2. Vytvoření nového zařízení po odeslání formuláře
     public static function create() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {

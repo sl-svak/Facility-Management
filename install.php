@@ -5,6 +5,7 @@ error_reporting(0);
 
 session_start();
 
+define('APP_ROOT', __DIR__);
 $baseDir    = __DIR__;
 $configDir  = $baseDir . '/config';
 $configFile = $configDir . '/config.php';
@@ -30,13 +31,12 @@ $error = '';
 // Dodatečná kontrola pro případ, že existuje config, ale chybí lock file.
 if (file_exists($configFile) && $step === 1) {
     require_once $configFile;
-    if (defined('APP_ROOT')) {
+    {
         require_once APP_ROOT . '/app/Core/Database.php';
         try {
             $pdo = Database::getConnection();
             $stmt = $pdo->query("SELECT COUNT(*) FROM users");
             if ($stmt && (int)$stmt->fetchColumn() > 0) {
-                // Systém se zdá být nainstalovaný (má uživatele), vytvoříme chybějící zámek a zamítneme přístup
                 @file_put_contents($lockFile, 'Uzamceno automaticky: ' . date('Y-m-d H:i:s'));
                 header('Location: index.php?page=login');
                 exit;
@@ -51,7 +51,7 @@ if (file_exists($configFile) && $step === 1) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. ZPRACOVÁNÍ FORMULÁŘŮ A VYTVOŘENÍ SCHÉMATU
+// 2. ZPRACOVÁNÍ FORMULÁŘŮ A VYTVOŘENÍ SCHÉMATU (CMMS v2.0)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($step === 1) {
@@ -70,9 +70,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
                 ]);
 
-                if (!is_dir($configDir)) @mkdir($configDir, 0777, true);
+                if (!is_dir($configDir)) {
+                    @mkdir($configDir, 0755, true);
+                }
 
-                // Bezpečný zápis config.php s ochranou proti přímému zobrazení
                 $configContent = "<?php\n" .
                     "// Ochrana proti přímému přístupu\n" .
                     "if (!defined('APP_ROOT')) {\n" .
@@ -83,12 +84,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "define('DB_NAME', " . var_export($db_name, true) . ");\n" .
                     "define('DB_USER', " . var_export($db_user, true) . ");\n" .
                     "define('DB_PASS', " . var_export($db_pass, true) . ");\n";
-                
+
                 if (@file_put_contents($configFile, $configContent) === false) {
                     throw new Exception("Nepodařilo se zapsat do složky config/. Zkontrolujte oprávnění (chmod).");
                 }
 
-                $pdo->exec("
+                $schemaSql = "
                     CREATE TABLE IF NOT EXISTS departments (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         name VARCHAR(150) NOT NULL,
@@ -208,6 +209,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+                    CREATE TABLE IF NOT EXISTS audit_categories (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(150) NOT NULL,
+                        default_interval_months INT NOT NULL DEFAULT 12,
+                        default_deadline_type ENUM('strict', 'month') NOT NULL DEFAULT 'strict',
+                        color_hex VARCHAR(20) NOT NULL DEFAULT '#2980b9',
+                        is_active TINYINT(1) NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    CREATE TABLE IF NOT EXISTS external_suppliers (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(200) NOT NULL,
+                        contact_person VARCHAR(150) NULL,
+                        phone VARCHAR(50) NULL,
+                        email VARCHAR(150) NULL,
+                        notes TEXT NULL,
+                        is_active TINYINT(1) NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    CREATE TABLE IF NOT EXISTS external_audit_plans (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        asset_id INT NOT NULL,
+                        audit_category_id INT NOT NULL,
+                        default_supplier_id INT NULL,
+                        interval_months INT NOT NULL DEFAULT 12,
+                        warning_days INT NOT NULL DEFAULT 30,
+                        deadline_type ENUM('strict', 'month') NOT NULL DEFAULT 'strict',
+                        last_execution_date DATE NULL,
+                        next_due_date DATE NOT NULL,
+                        is_active TINYINT(1) NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_ext_plan_due (next_due_date, is_active),
+                        INDEX idx_ext_plan_asset (asset_id),
+                        FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
+                        FOREIGN KEY (audit_category_id) REFERENCES audit_categories(id),
+                        FOREIGN KEY (default_supplier_id) REFERENCES external_suppliers(id) ON DELETE SET NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    CREATE TABLE IF NOT EXISTS external_audit_records (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        plan_id INT NOT NULL,
+                        asset_id INT NOT NULL,
+                        supplier_id INT NULL,
+                        supplier_name VARCHAR(200) NULL,
+                        execution_date DATE NOT NULL,
+                        next_due_date DATE NOT NULL,
+                        status ENUM('waiting_protocol', 'completed') NOT NULL DEFAULT 'waiting_protocol',
+                        protocol_file VARCHAR(255) NULL,
+                        protocol_number VARCHAR(100) NULL,
+                        notes TEXT NULL,
+                        created_by INT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_ext_rec_plan_status (plan_id, status),
+                        INDEX idx_ext_rec_asset (asset_id),
+                        FOREIGN KEY (plan_id) REFERENCES external_audit_plans(id) ON DELETE CASCADE,
+                        FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
+                        FOREIGN KEY (supplier_id) REFERENCES external_suppliers(id) ON DELETE SET NULL,
+                        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                    CREATE TABLE IF NOT EXISTS output_form_templates (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        asset_id INT NOT NULL,
+                        source_form_template_id INT NULL,
+                        title VARCHAR(255) NOT NULL,
+                        paper_code VARCHAR(100) NULL,
+                        header_note TEXT NULL,
+                        fields_json MEDIUMTEXT NOT NULL,
+                        show_signatures TINYINT(1) NOT NULL DEFAULT 1,
+                        show_photos TINYINT(1) NOT NULL DEFAULT 1,
+                        created_by INT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_out_tpl_asset (asset_id),
+                        FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
+                        FOREIGN KEY (source_form_template_id) REFERENCES form_templates(id) ON DELETE SET NULL,
+                        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
                     CREATE TABLE IF NOT EXISTS settings (
                         setting_key VARCHAR(50) PRIMARY KEY,
                         setting_value TEXT NOT NULL
@@ -218,15 +300,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-                    INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('app_name', 'CMMS Cosmonde'), ('favicon_path', '');
-                    INSERT IGNORE INTO system_migrations (version) VALUES ('1.0.8');
-                ");
+                    INSERT IGNORE INTO settings (setting_key, setting_value) VALUES
+                        ('app_name', 'CMMS Cosmonde'),
+                        ('favicon_path', ''),
+                        ('module_inspections', '1'),
+                        ('module_external_audits', '1'),
+                        ('module_output_templates', '1'),
+                        ('module_tickets', '1');
+
+                    INSERT IGNORE INTO audit_categories (name, default_interval_months, default_deadline_type, color_hex) VALUES
+                        ('Revize elektro (do konce měsíce)', 12, 'month', '#2980b9'),
+                        ('Tlaková zařízení (přesně na den)', 12, 'strict', '#8e44ad'),
+                        ('Plynová a zdvihací zařízení', 12, 'strict', '#d35400');
+
+                    INSERT IGNORE INTO system_migrations (version) VALUES ('2.0');
+                ";
+
+                // Každý příkaz zvlášť: vícepříkazové exec() by chybu v druhém a dalším příkazu tiše ignorovalo
+                // a instalace by skončila s neúplným schématem.
+                foreach (preg_split('/;\s*\n/', $schemaSql) as $statement) {
+                    $statement = trim($statement);
+                    if ($statement !== '') {
+                        $pdo->exec($statement);
+                    }
+                }
+
+                foreach (['/assets/uploads', '/app/libs/mpdf/tmp'] as $dir) {
+                    if (!is_dir($baseDir . $dir)) {
+                        @mkdir($baseDir . $dir, 0755, true);
+                    }
+                }
 
                 header('Location: install.php?step=2');
                 exit;
 
             } catch (Exception $e) {
-                // Nikdy nezobrazujeme detailní chybu uživateli v produkci!
+                error_log('CMMS install krok 1: ' . $e->getMessage());
                 $error = 'Chyba databáze: Zkontrolujte prosím přihlašovací údaje a ujistěte se, že databáze existuje.';
             }
         }
@@ -240,16 +349,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Vyplňte prosím všechna pole.';
         } elseif (mb_strlen($password) < 12) {
             $error = 'Z bezpečnostních důvodů musí mít heslo administrátora minimálně 12 znaků.';
+        } elseif (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
+            $error = 'Heslo musí obsahovat velká, malá písmena a číslice.';
+        } elseif (!file_exists($configFile)) {
+            $error = 'Nejprve dokončete krok 1 (připojení k databázi).';
         } else {
-            define('APP_ROOT', __DIR__);
             require_once $configFile;
             require_once APP_ROOT . '/app/Core/Database.php';
 
             try {
                 $pdo = Database::getConnection();
+
+                // Bez zámku by jinak kdokoli mohl přes ?step=2 založit dalšího administrátora.
+                if ((int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() > 0) {
+                    @file_put_contents($lockFile, 'Uzamceno automaticky: ' . date('Y-m-d H:i:s'));
+                    http_response_code(403);
+                    die('Systém je již nainstalován.');
+                }
+
                 $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
                 $stmt->execute([$username]);
-                
+
                 if ($stmt->fetchColumn() > 0) {
                     $error = 'Uživatelské jméno již existuje.';
                 } else {
@@ -257,13 +377,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("INSERT INTO users (username, password, first_name, last_name, role, is_active) VALUES (?, ?, ?, ?, 'admin', 1)");
                     $stmt->execute([$username, $hashed_password, $first_name, $last_name]);
 
-                    // UZAMČENÍ INSTALACE
-                    @file_put_contents($lockFile, 'Instalace dokoncena: ' . date('Y-m-d H:i:s'));
-                    
-                    // POKUS O TRVALÉ SMAZÁNÍ
+                    @file_put_contents($lockFile, 'Instalace dokoncena (v2.0): ' . date('Y-m-d H:i:s'));
                     $deleted = @unlink(__FILE__);
 
-                    // Okamžité vykreslení zprávy o úspěchu (Vyhneme se přesměrování do zamčeného/smazaného skriptu)
                     echo '<!DOCTYPE html>
                     <html lang="cs">
                     <head>
@@ -272,24 +388,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </head>
                     <body>
                         <div class="box">
-                            <h2 style="margin-top:0;color:#27ae60;">Instalace byla úspěšná!</h2>';
-                            
-                            if ($deleted) {
-                                echo '<div style="background:#eafaf1;color:#27ae60;padding:15px;border-radius:4px;border:1px solid #c3e6cb;margin:20px 0;">Instalační soubor byl z bezpečnostních důvodů <strong>trvale smazán</strong>.</div>';
-                            } else {
-                                echo '<div style="background:#fff3cd;color:#856404;padding:15px;border-radius:4px;border:1px solid #ffeeba;margin:20px 0;text-align:left;">
-                                    <strong>POZOR: Server nedovolil automatické smazání.</strong><br>
-                                    Systém je sice chráněn datovým zámkem, ale pro stoprocentní jistotu se prosím připojte na FTP a <strong>smažte soubor install.php ručně</strong>.
-                                </div>';
-                            }
-                            
-                            echo '<a href="index.php?page=login" class="btn">Přejít k přihlášení</a>
+                            <h2 style="margin-top:0;color:#27ae60;">Instalace CMMS v2.0 byla úspěšná!</h2>';
+
+                    if ($deleted) {
+                        echo '<div style="background:#eafaf1;color:#27ae60;padding:15px;border-radius:4px;border:1px solid #c3e6cb;margin:20px 0;">Instalační soubor byl z bezpečnostních důvodů <strong>trvale smazán</strong>.</div>';
+                    } else {
+                        echo '<div style="background:#fff3cd;color:#856404;padding:15px;border-radius:4px;border:1px solid #ffeeba;margin:20px 0;text-align:left;">
+                            <strong>POZOR: Server nedovolil automatické smazání.</strong><br>
+                            Systém je sice chráněn datovým zámkem, ale pro stoprocentní jistotu se prosím připojte na FTP a <strong>smažte soubor install.php ručně</strong>.
+                        </div>';
+                    }
+
+                    echo '<a href="index.php?page=login" class="btn">Přejít k přihlášení</a>
                         </div>
                     </body>
                     </html>';
                     exit;
                 }
             } catch (Exception $e) {
+                error_log('CMMS install krok 2: ' . $e->getMessage());
                 $error = 'Došlo k chybě při vytváření administrátora.';
             }
         }
@@ -301,7 +418,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instalace CMMS Systému</title>
+    <title>Instalace CMMS Systému v2.0</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; margin: 0; padding: 40px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 500px; border-top: 4px solid #2980b9; }
@@ -312,7 +429,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="card">
-        <h2 style="margin-top:0;">CMMS Systém – Instalace</h2>
+        <h2 style="margin-top:0;">CMMS Systém v2.0 – Instalace</h2>
         <?php if (!empty($error)): ?><div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
         <?php if ($step === 1): ?>

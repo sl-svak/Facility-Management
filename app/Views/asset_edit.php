@@ -37,6 +37,14 @@
             <small style="color: var(--text-muted); display: block; margin-top: 5px;">Určuje, pod který úsek stroj spadá. Lze kdykoliv změnit.</small>
         </div>
 
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Stav zařízení</label>
+            <select name="operational_status" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; background: var(--card-bg); color: var(--text-main);">
+                <option value="running" <?= (($asset['operational_status'] ?? 'running') !== 'stopped') ? 'selected' : '' ?>>V provozu</option>
+                <option value="stopped" <?= (($asset['operational_status'] ?? 'running') === 'stopped') ? 'selected' : '' ?>>Odstaveno</option>
+            </select>
+        </div>
+
         <div style="margin-bottom: 25px;">
             <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Popis / Umístění</label>
             <input type="text" name="description" value="<?= htmlspecialchars($asset['description'] ?? '') ?>" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; background: var(--card-bg); color: var(--text-main);">

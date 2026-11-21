@@ -1,7 +1,6 @@
 <?php
 class AssetController {
-    
-    // 1. Zobrazení stránky se seznamem a aplikovaným filtrem
+
     public static function index() {
         if (Auth::isAdmin()) {
             $assets = AssetModel::getAll();
@@ -10,10 +9,9 @@ class AssetController {
             $userDepts = $currentUser['departments'] ?? [];
             $assets = empty($userDepts) ? [] : AssetModel::getAll($userDepts);
         }
-        
-        // Načtení všech úseků pro roletku ve formuláři
+
         $departments = DepartmentModel::getAll();
-        
+
         renderView('assets', [
             'pageTitle' => 'Správa zařízení',
             'assets' => $assets,
@@ -21,8 +19,6 @@ class AssetController {
         ]);
     }
 
-    // Tisková stránka s QR kódem zařízení. QR se generuje lokálně (TCPDF) a vkládá přímo do HTML,
-    // takže hash zařízení neopouští server a nezávisí na dalším požadavku na obrázek.
     public static function qr() {
         $id = (int)($_GET['id'] ?? 0);
         $asset = AssetModel::getById($id);
@@ -41,19 +37,7 @@ class AssetController {
         $path = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
         $scanUrl = ($isHttps ? 'https://' : 'http://') . $host . $path . '/index.php?page=scan&hash=' . urlencode($asset['qr_hash']);
 
-        $svg = '';
-        try {
-            require_once APP_ROOT . '/app/tcpdf/tcpdf_barcodes_2d.php';
-            $barcode = new TCPDF2DBarcode($scanUrl, 'QRCODE,M');
-            $svg = (string)$barcode->getBarcodeSVGcode(6, 6, 'black');
-            // Odstraníme XML prolog a DOCTYPE (do HTML se vkládá jen element <svg>) a zajistíme škálování
-            $pos = strpos($svg, '<svg');
-            $svg = $pos !== false ? substr($svg, $pos) : '';
-            $svg = preg_replace('/<svg width="(\d+)" height="(\d+)"/', '<svg viewBox="0 0 $1 $2" shape-rendering="crispEdges"', $svg, 1);
-        } catch (Throwable $e) {
-            error_log('QR generování selhalo: ' . $e->getMessage());
-            $svg = '';
-        }
+        $svg = QrGenerator::renderSvg($scanUrl);
 
         while (ob_get_level()) { ob_end_clean(); }
         header('Content-Type: text/html; charset=utf-8');
@@ -81,7 +65,7 @@ class AssetController {
         <div class="qr"><?= $svg ?></div>
         <br><button type="button" id="printBtn">&#128424; Vytisknout štítek</button>
     <?php else: ?>
-        <p class="err">QR kód se nepodařilo vygenerovat. Zkontrolujte, že na serveru existuje složka app/tcpdf (soubor tcpdf_barcodes_2d.php) a chybový log.</p>
+        <p class="err">QR kód se nepodařilo vygenerovat. Zkontrolujte, že na serveru existuje složka app/libs/qrcode/ a chybový log.</p>
     <?php endif; ?>
     <script src="assets/js/print-page.js"></script>
 </body>
@@ -90,14 +74,12 @@ class AssetController {
         exit;
     }
 
-    // 2. Vytvoření nového zařízení po odeslání formuláře
     public static function create() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim($_POST['name'] ?? '');
             $description = trim($_POST['description'] ?? '');
             $department_id = !empty($_POST['department_id']) ? (int)$_POST['department_id'] : null;
-            
-            // BEZPEČNOSTNÍ ZÁMEK: Manažer může přidělovat stroje jen do svých úseků
+
             if (!Auth::isAdmin()) {
                 $currentUser = UserModel::getById($_SESSION['user_id']);
                 $userDepts = $currentUser['departments'] ?? [];
@@ -106,7 +88,7 @@ class AssetController {
                     die("Bezpečnostní chyba: Zařízení musí být přiřazeno do vašeho úseku.");
                 }
             }
-            
+
             if (!empty($name)) {
                 AssetModel::create($name, $description, $department_id);
             }
@@ -115,34 +97,32 @@ class AssetController {
         exit;
     }
 
-    // 3. Odstranění zařízení (Ochrana proti CSRF přes POST)
     public static function delete() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
             $id = (int)$_POST['id'];
-            
+
             if (!Auth::canAccessAsset($id)) {
                 http_response_code(403);
                 die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
             }
-            
+
             AssetModel::delete($id);
         }
         header('Location: index.php?page=assets');
         exit;
     }
 
-    // 4. Zobrazení formuláře pro úpravu zařízení
     public static function edit() {
         $id = (int)($_GET['id'] ?? 0);
         $asset = AssetModel::getById($id);
-        
+
         if (!$asset || !Auth::canAccessAsset($id)) {
             http_response_code(403);
             die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
         }
 
         $departments = DepartmentModel::getAll();
-        
+
         renderView('asset_edit', [
             'pageTitle' => 'Úprava zařízení: ' . $asset['name'],
             'asset' => $asset,
@@ -150,22 +130,20 @@ class AssetController {
         ]);
     }
 
-    // 5. Uložení upraveného zařízení
     public static function update() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = (int)($_POST['id'] ?? 0);
             $name = trim($_POST['name'] ?? '');
             $description = trim($_POST['description'] ?? '');
             $department_id = !empty($_POST['department_id']) ? (int)$_POST['department_id'] : null;
-            
+            $status = (($_POST['operational_status'] ?? 'running') === 'stopped') ? 'stopped' : 'running';
+
             if ($id > 0 && !empty($name)) {
-                // 1. Zkontrolujeme, zda má uživatel právo upravovat tento konkrétní stroj
                 if (!Auth::canAccessAsset($id)) {
                     http_response_code(403);
                     die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
                 }
-                
-                // 2. BEZPEČNOSTNÍ ZÁMEK: Zkontrolujeme, zda stroj nepřesouvá do cizího úseku
+
                 if (!Auth::isAdmin()) {
                     $currentUser = UserModel::getById($_SESSION['user_id']);
                     $userDepts = $currentUser['departments'] ?? [];
@@ -175,7 +153,7 @@ class AssetController {
                     }
                 }
 
-                AssetModel::update($id, $name, $description, $department_id);
+                AssetModel::update($id, $name, $description, $department_id, $status);
             }
         }
         header('Location: index.php?page=assets');

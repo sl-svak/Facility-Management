@@ -2,7 +2,7 @@
 
 class ImageProcessor {
 
-    public static function processBase64($base64String, $uploadDir) {
+    public static function processBase64($base64String, $uploadDir, $flattenOnWhite = false) {
         // 1. Rozdělení hlavičky a samotných dat
         if (!preg_match('/^data:image\/(\w+);base64,/', $base64String, $type)) {
             return false;
@@ -56,7 +56,13 @@ class ImageProcessor {
         $newIm = imagecreatetruecolor($newWidth, $newHeight);
 
         // --- KLÍČOVÁ OPRAVA PRO PRŮHLEDNOST (ZABRÁNÍ ČERNÉMU POZADÍ) ---
-        if ($type === 'png' || $type === 'webp') {
+        if ($flattenOnWhite) {
+            // Podpisy: průhledné PNG slijeme na bílé pozadí (alfa kanál při zmenšování a ve výstupním PDF
+            // jinak způsobuje ztmavení/zčernání modrého tahu).
+            $white = imagecolorallocate($newIm, 255, 255, 255);
+            imagefilledrectangle($newIm, 0, 0, $newWidth, $newHeight, $white);
+            imagealphablending($newIm, true);
+        } elseif ($type === 'png' || $type === 'webp') {
             // Vypneme prolínání barev, aby se zachovala čistá průhlednost
             imagealphablending($newIm, false);
             // Zapneme ukládání alfa kanálu

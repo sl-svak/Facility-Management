@@ -26,4 +26,18 @@ class SettingModel {
         $stmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
         return $stmt->execute([$key, $value, $value]);
     }
+
+    // Ověří, zda je volitelný modul zapnutý ('1'). Data v DB zůstávají zachována i při vypnutí.
+    public static function isModuleEnabled($moduleKey, $default = '1') {
+        $allowedModules = [
+            'module_inspections',
+            'module_external_audits',
+            'module_output_templates',
+            'module_tickets',
+        ];
+        if (!in_array($moduleKey, $allowedModules, true)) {
+            return true;
+        }
+        return self::get($moduleKey, $default) === '1';
+    }
 }

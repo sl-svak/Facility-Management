@@ -1,47 +1,84 @@
-<?php if (!defined('APP_ROOT')) exit; ?>
+<?php
+$templatesMapJson = json_encode($outputTemplatesByAsset ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
+?>
 
-<div class="card card-primary-top" style="max-width: 600px; margin: 0 auto;">
-    <h3 style="margin-top:0; color: var(--text-main);">
-        <span class="material-symbols-outlined" style="vertical-align: middle; color: var(--danger);">picture_as_pdf</span> 
-        Kniha stroje & Protokoly
-    </h3>
-    
-    <p style="color: var(--text-muted); line-height: 1.5;">
-        Zde můžete vygenerovat PDF report pro konkrétní zařízení za vybraný kalendářní rok. 
-        Report obsahuje všechny kontroly, zaznamenané hodnoty, fotografie závad, podpisy i případná řešení tiketů.
+<div class="card">
+    <h2>Export výkazů do PDF (měsíční i celoroční)</h2>
+    <p style="color: #555; margin-bottom: 18px;">
+        Vyberte konkrétní zařízení, rok a zvolte buď <strong>konkrétní měsíc</strong> (pro průběžný tisk po uzavření měsíce),
+        nebo <strong>celý kalendářní rok</strong>. Můžete použít kompletní výpis nebo vlastní výstupní šablonu vázanou na zařízení.
     </p>
 
-    <!-- Použijeme POST, přesně jak to TCPDF kontrolér očekává -->
-    <form method="POST" action="index.php?page=report_generate" target="_blank" style="margin-top: 25px;">
-        
-        <!-- OCHRANA CSRF -->
+    <form method="POST" action="index.php?page=report_generate" target="_blank" id="reportGenerateForm">
         <?= Security::csrfField() ?>
 
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: var(--text-main);">Zařízení / Stroj:</label>
-            <select name="asset_id" required style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1em; background: var(--card-bg); color: var(--text-main);">
-                <option value="">-- Vyberte zařízení --</option>
+        <div class="form-group">
+            <label for="report_asset_id">Zařízení</label>
+            <select name="asset_id" id="report_asset_id" required>
                 <?php foreach ($assets as $a): ?>
-                    <?php $statusText = $a['operational_status'] === 'stopped' ? ' (Odstaveno)' : ''; ?>
-                    <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['name']) ?><?= $statusText ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-
-        <div style="margin-bottom: 25px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: var(--text-main);">Kalendářní rok:</label>
-            <select name="year" required style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1em; background: var(--card-bg); color: var(--text-main);">
-                <?php $currentYear = date('Y'); ?>
-                <?php foreach ($years as $y): ?>
-                    <option value="<?= $y ?>" <?= ($y == $currentYear) ? 'selected' : '' ?>>
-                        Rok <?= htmlspecialchars($y) ?> <?= ($y == $currentYear) ? '(Aktuální)' : '' ?>
+                    <option value="<?= (int)$a['id'] ?>">
+                        <?= htmlspecialchars((string)$a['name'], ENT_QUOTES, 'UTF-8') ?>
+                        <?= (($a['operational_status'] ?? 'running') === 'stopped') ? ' [Odstaveno]' : '' ?>
                     </option>
                 <?php endforeach; ?>
             </select>
         </div>
 
-        <button type="submit" class="btn btn-danger btn-block" style="padding: 15px; font-size: 1.1em;">
-            <span class="material-symbols-outlined" style="vertical-align: middle;">print</span> Vygenerovat PDF protokol
-        </button>
+        <div class="form-group">
+            <label for="report_year">Rok</label>
+            <select name="year" id="report_year" required>
+                <?php foreach ($years as $y): ?>
+                    <option value="<?= (int)$y ?>" <?= ((int)$y === (int)date('Y')) ? 'selected' : '' ?>><?= (int)$y ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="report_period_mode">Rozsah období</label>
+            <select name="period_mode" id="report_period_mode">
+                <option value="month" selected>Konkrétní měsíc (průběžný měsíční výkaz)</option>
+                <option value="year">Celý kalendářní rok</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="report_month_group">
+            <label for="report_month">Měsíc</label>
+            <select name="month" id="report_month">
+                <?php
+                $prevMonth = ((int)date('n') > 1) ? ((int)date('n') - 1) : 12;
+                foreach ($months as $mNum => $mName):
+                ?>
+                    <option value="<?= (int)$mNum ?>" <?= ((int)$mNum === $prevMonth) ? 'selected' : '' ?>>
+                        <?= sprintf('%02d', (int)$mNum) ?> – <?= htmlspecialchars((string)$mName, ENT_QUOTES, 'UTF-8') ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <?php if (!empty($outputTemplatesEnabled)): ?>
+            <div class="form-group">
+                <label for="report_output_mode">Typ výstupního formuláře</label>
+                <select name="output_mode" id="report_output_mode">
+                    <option value="complete">Kompletní formulář (všechny evidované parametry jako dosud)</option>
+                    <option value="custom">Vlastní výstupní šablona zařízení</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="report_custom_template_group" style="display: none;">
+                <label for="report_output_template_id">Vybraná šablona pro zařízení</label>
+                <select name="output_template_id" id="report_output_template_id"></select>
+                <small id="report_no_tpl_hint" style="display: none; color: #b9770e;">
+                    Pro toto zařízení zatím není vytvořena žádná vlastní výstupní šablona.
+                    <a href="index.php?page=output_templates">Vytvořit šablonu</a>
+                </small>
+            </div>
+        <?php else: ?>
+            <input type="hidden" name="output_mode" value="complete">
+        <?php endif; ?>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 15px;">Vygenerovat PDF</button>
     </form>
 </div>
+
+<script id="cmms-output-templates-data" type="application/json"><?= $templatesMapJson ?></script>
+<script src="assets/js/page-reports.js"></script>

@@ -148,6 +148,9 @@ document.addEventListener('DOMContentLoaded', function() {
 // ==========================================
 // FUNKCE: PODPISOVA PLATNA (Univerzalni jadro s opravou kurzoru)
 // ==========================================
+// Jednotná modrá barva všech podpisů (kontroly i tikety)
+const SIGNATURE_COLOR = '#0000cd';
+
 function initSignaturePad(canvas, inputId) {
     const ctx = canvas.getContext('2d');
     let drawing = false;
@@ -169,7 +172,7 @@ function initSignaturePad(canvas, inputId) {
         ctx.lineWidth = 2 * ratio;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#0000cd';
+        ctx.strokeStyle = SIGNATURE_COLOR;
     }
 
     window.addEventListener('resize', resizeCanvas);
@@ -187,7 +190,7 @@ function initSignaturePad(canvas, inputId) {
         };
     };
 
-    const start = (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); if(e.cancelable) e.preventDefault(); };
+    const start = (e) => { drawing = true; ctx.strokeStyle = SIGNATURE_COLOR; ctx.lineWidth = 2 * Math.max(window.devicePixelRatio || 1, 1); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); if(e.cancelable) e.preventDefault(); };
     const move = (e) => { if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); if(e.cancelable) e.preventDefault(); };
     const stop = () => { 
         if (drawing) { 
@@ -199,7 +202,7 @@ function initSignaturePad(canvas, inputId) {
     };
 
     canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', stop); canvas.addEventListener('mouseout', stop);
-    canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); window.addEventListener('touchend', stop);
+    canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); window.addEventListener('touchend', stop); window.addEventListener('touchcancel', stop);
 }
 
 function clearSignature() { 
@@ -430,6 +433,26 @@ function validateInspectionForm() {
     return true; 
 }
 
+// Tlačítko "Označit vše jako OK": nastaví všechny dosud nevyplněné OK/KO přepínače na OK
+function markAllOk() {
+    const form = document.getElementById('inspectionForm');
+    if (!form) return;
+    const groups = {};
+    form.querySelectorAll('input[type="radio"][value="OK"]').forEach(function (radio) {
+        groups[radio.name] = radio;
+    });
+    Object.keys(groups).forEach(function (name) {
+        const checked = form.querySelector('input[type="radio"][name="' + name.replace(/"/g, '\\"') + '"]:checked');
+        if (!checked) groups[name].checked = true;
+    });
+    saveFormData();
+}
+
+// Odeslání formuláře po změně hodnoty (náhrada inline onchange kvůli CSP)
+function submitForm() {
+    if (this && this.form) this.form.submit();
+}
+
 function toggleFormFields(status) {
     document.querySelectorAll('.hidable-block').forEach(block => {
         if (status === 'Odstaveno') {
@@ -484,5 +507,7 @@ Object.assign(window.CMMS_ACTIONS, {
     validateInspectionForm: validateInspectionForm,
     toggleFormFields: toggleFormFields,
     toggleDropdown: toggleDropdown,
-    updateDropdownText: updateDropdownText
+    updateDropdownText: updateDropdownText,
+    markAllOk: markAllOk,
+    submitForm: submitForm
 });

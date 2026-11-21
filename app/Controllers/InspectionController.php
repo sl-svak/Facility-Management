@@ -1,9 +1,21 @@
 <?php
-// app/Controllers/InspectionController.php
 
 class InspectionController {
 
+    private static function ensureInspectionsEnabled() {
+        if (!SettingModel::isModuleEnabled('module_inspections')) {
+            renderView('module_disabled', [
+                'pageTitle' => 'Modul vypnut',
+                'moduleTitle' => 'Kontroly a plány údržby',
+                'settingKey' => 'module_inspections'
+            ]);
+            exit;
+        }
+    }
+
     public static function scan() {
+        self::ensureInspectionsEnabled();
+
         $hash = trim($_GET['hash'] ?? '');
         $asset = AssetModel::getByHash($hash);
 
@@ -44,74 +56,128 @@ class InspectionController {
         $stmt->execute([$asset['id']]);
         $allForms = $stmt->fetchAll();
 
-        $stmtTickets = $pdo->prepare("SELECT * FROM tickets WHERE asset_id = ? AND status = 'open' ORDER BY created_at DESC");
-        $stmtTickets->execute([$asset['id']]);
-        $openTickets = $stmtTickets->fetchAll();
+        $openTickets = [];
+        if (SettingModel::isModuleEnabled('module_tickets')) {
+            $stmtTickets = $pdo->prepare("SELECT * FROM tickets WHERE asset_id = ? AND status = 'open' ORDER BY created_at DESC");
+            $stmtTickets->execute([$asset['id']]);
+            $openTickets = $stmtTickets->fetchAll();
+        }
 
-        $forms = []; $completedTodayForms = []; $futureForms = [];
+        $forms = [];
+        $completedTodayForms = [];
+        $futureForms = [];
 
         foreach ($allForms as $f) {
             if (!$f['last_inspection']) {
-                $forms[] = $f; continue;
+                $forms[] = $f;
+                continue;
             }
-            $last_real_time = strtotime($f['last_inspection']);
+            $last_real_time = strtotime((string)$f['last_inspection']);
             $last_logical_time = $last_real_time - $offset_seconds;
             $last_logical_date = strtotime(date('Y-m-d', $last_logical_time));
-            
+
             $next_due_logical = strtotime("+{$f['period_days']} days", $last_logical_date);
-            
+
             if ((int)$workweek_days === 5) {
                 $day_of_week = date('N', $next_due_logical);
-                if ($day_of_week == 6) { $next_due_logical = strtotime("+2 days", $next_due_logical); } 
-                elseif ($day_of_week == 7) { $next_due_logical = strtotime("+1 day", $next_due_logical); }
+                if ($day_of_week == 6) {
+                    $next_due_logical = strtotime("+2 days", $next_due_logical);
+                } elseif ($day_of_week == 7) {
+                    $next_due_logical = strtotime("+1 day", $next_due_logical);
+                }
             }
-            
+
             $diff_seconds = $next_due_logical - $today_logical_midnight;
             $days_remaining = (int)round($diff_seconds / 86400);
-            
+
             $f['days_remaining'] = $days_remaining;
 
-            if ($days_remaining <= 0) { $forms[] = $f; } 
-            else {
-                if ($last_logical_date == $today_logical_midnight) { $completedTodayForms[] = $f; } 
-                else { $futureForms[] = $f; }
+            if ($days_remaining <= 0) {
+                $forms[] = $f;
+            } else {
+                if ($last_logical_date == $today_logical_midnight) {
+                    $completedTodayForms[] = $f;
+                } else {
+                    $futureForms[] = $f;
+                }
             }
         }
 
         renderView('scan_result', [
-            'pageTitle' => 'Rozcestník: ' . $asset['name'], 'asset' => $asset, 'forms' => $forms,
-            'completedTodayForms' => $completedTodayForms, 'futureForms' => $futureForms,
-            'openTickets' => $openTickets, 'departmentWarning' => false
+            'pageTitle' => 'Rozcestník: ' . $asset['name'],
+            'asset' => $asset,
+            'forms' => $forms,
+            'completedTodayForms' => $completedTodayForms,
+            'futureForms' => $futureForms,
+            'openTickets' => $openTickets,
+            'departmentWarning' => false
         ]);
     }
 
     public static function fill() {
+        self::ensureInspectionsEnabled();
+
         $asset_id = (int)($_GET['asset_id'] ?? 0);
         $form_id  = (int)($_GET['form_id'] ?? 0);
 
         if (!Auth::canAccessAsset($asset_id)) {
-            http_response_code(403); die("Přístup odepřen.");
+            http_response_code(403);
+            die("Přístup odepřen.");
         }
 
         $asset = AssetModel::getById($asset_id);
         $template = FormModel::getById($form_id);
 
-        if (!$asset || !$template) { header('Location: index.php?page=assets'); exit; }
+        if (!$asset || !$template) {
+            header('Location: index.php?page=assets');
+            exit;
+        }
+
+        // Kontext posledního záznamu pro dané zařízení a formulář (pro lepší orientaci technika v terénu)
+        $pdo = Database::getConnection();
+        $stmtLast = $pdo->prepare("
+            SELECT data_json, status, created_at
+            FROM inspections
+            WHERE asset_id = ? AND form_template_id = ?
+            ORDER BY created_at DESC LIMIT 1
+        ");
+        $stmtLast->execute([$asset_id, $form_id]);
+        $lastInspection = $stmtLast->fetch();
+
+        $lastValues = [];
+        $lastInspectionMeta = null;
+        if ($lastInspection) {
+            $lastInspectionMeta = [
+                'created_at' => (string)$lastInspection['created_at'],
+                'status' => (string)$lastInspection['status'],
+            ];
+            $decodedLast = json_decode((string)$lastInspection['data_json'], true);
+            if (is_array($decodedLast)) {
+                $lastValues = $decodedLast;
+            }
+        }
 
         renderView('inspection_fill', [
-            'pageTitle' => 'Kontrola: ' . $asset['name'], 'asset' => $asset, 'template' => $template
+            'pageTitle' => 'Kontrola: ' . $asset['name'],
+            'asset' => $asset,
+            'template' => $template,
+            'lastValues' => $lastValues,
+            'lastInspectionMeta' => $lastInspectionMeta,
         ]);
     }
 
     public static function save() {
+        self::ensureInspectionsEnabled();
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $asset_id         = (int)($_POST['asset_id'] ?? 0);
             $form_template_id = (int)($_POST['form_template_id'] ?? 0);
             $duration_seconds = (int)($_POST['duration_seconds'] ?? 0);
             $technician_id    = $_SESSION['user_id'] ?? null;
-            
+
             if (!Auth::canAccessAsset($asset_id)) {
-                http_response_code(403); die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
+                http_response_code(403);
+                die("Bezpečnostní chyba: Nemáte oprávnění k tomuto zařízení.");
             }
 
             $pdo = Database::getConnection();
@@ -120,11 +186,12 @@ class InspectionController {
             $asset = $stmtAsset->fetch();
 
             if (!$asset) {
-                http_response_code(404); die("Bezpečnostní chyba: Zařízení neexistuje nebo bylo deaktivováno.");
+                http_response_code(404);
+                die("Bezpečnostní chyba: Zařízení neexistuje nebo bylo deaktivováno.");
             }
 
             $stmtRule = $pdo->prepare("
-                SELECT ft.id, ft.schema_json 
+                SELECT ft.id, ft.schema_json
                 FROM form_templates ft JOIN asset_form_rules afr ON afr.form_template_id = ft.id
                 WHERE afr.asset_id = ? AND ft.id = ? AND ft.is_active = 1
             ");
@@ -132,26 +199,27 @@ class InspectionController {
             $template = $stmtRule->fetch();
 
             if (!$template) {
-                http_response_code(403); die("Bezpečnostní chyba: Zvolený formulář není k tomuto zařízení přiřazen.");
+                http_response_code(403);
+                die("Bezpečnostní chyba: Zvolený formulář není k tomuto zařízení přiřazen.");
             }
 
             $formData = $_POST['data'] ?? [];
             $uploadDir = APP_ROOT . '/assets/uploads/';
 
-            // --- BEZPEČNÉ ZPRACOVÁNÍ FOTOGRAFIÍ Z FORMULÁŘE ---
             if (isset($_POST['photos_base64']) && is_array($_POST['photos_base64'])) {
                 @ini_set('memory_limit', '256M');
                 @ini_set('max_execution_time', '60');
-                
+
                 if (count($_POST['photos_base64']) > 15) {
-                    http_response_code(400); die("Bezpečnostní chyba: Překročen limit počtu fotografických sekcí.");
+                    http_response_code(400);
+                    die("Bezpečnostní chyba: Překročen limit počtu fotografických sekcí.");
                 }
 
                 foreach ($_POST['photos_base64'] as $key => $base64Array) {
                     if (is_array($base64Array) && count($base64Array) > 5) {
                         $base64Array = array_slice($base64Array, 0, 5);
                     }
-                    $uploadedPaths = []; 
+                    $uploadedPaths = [];
                     foreach ($base64Array as $i => $base64String) {
                         $savedPath = ImageProcessor::processBase64($base64String, $uploadDir);
                         if ($savedPath) {
@@ -162,18 +230,30 @@ class InspectionController {
                 }
             }
 
-            $hasDefect = false; 
-            $defectNote = ''; 
-            $setToStopped = false; 
+            $hasDefect = false;
+            $defectNote = '';
+            $setToStopped = false;
             $setToRunning = false;
 
-            // --- TVRDÁ SERVEROVÁ VALIDACE SCHÉMATU ---
             $schema = json_decode($template['schema_json'] ?? '[]', true);
             if (!is_array($schema)) {
                 $schema = [];
             }
             $labelMap = [];
             $signatureFields = [];
+
+            // Při odstavení zařízení klient ostatní pole skrývá a nevyžaduje (toggleFormFields v app.js),
+            // proto se povinnost vyplnění v tom případě nevynucuje ani na serveru.
+            $isStoppedSubmit = false;
+            foreach ($schema as $sf) {
+                if (is_array($sf) && ($sf['type'] ?? '') === 'asset_status') {
+                    $sfId = $sf['id'] ?? ($sf['label'] ?? '');
+                    if ($sfId !== '' && ($formData[$sfId] ?? '') === 'Odstaveno') {
+                        $isStoppedSubmit = true;
+                    }
+                }
+            }
+
             foreach ($schema as $f) {
                 if (!is_array($f)) {
                     continue;
@@ -184,7 +264,7 @@ class InspectionController {
                 }
                 $labelMap[$fId] = $f['label'] ?? $fId;
                 $fieldType = $f['type'] ?? 'text';
-                $isRequired = !empty($f['required']);
+                $isRequired = !empty($f['required']) && !($isStoppedSubmit && $fieldType !== 'asset_status');
 
                 if ($fieldType === 'signature') {
                     $signatureFields[] = $fId;
@@ -201,12 +281,12 @@ class InspectionController {
 
                 if (in_array($fieldType, ['number', 'numeric_limit', 'meter_reading'], true)
                     && isset($formData[$fId]) && $formData[$fId] !== '' && !is_array($formData[$fId])) {
-                    
+
                     if (!is_numeric($formData[$fId])) {
                         http_response_code(400);
                         die('Bezpečnostní chyba: Pole [' . htmlspecialchars((string)$labelMap[$fId], ENT_QUOTES, 'UTF-8') . '] musí být číslo.');
                     }
-                    
+
                     $numVal = (float)$formData[$fId];
                     $displayLabel = $labelMap[$fId];
 
@@ -222,8 +302,8 @@ class InspectionController {
             }
 
             foreach ($signatureFields as $sigField) {
-                if (!empty($formData[$sigField]) && strpos($formData[$sigField], 'data:image/') === 0) {
-                    $savedSig = ImageProcessor::processBase64($formData[$sigField], $uploadDir);
+                if (!empty($formData[$sigField]) && strpos((string)$formData[$sigField], 'data:image/') === 0) {
+                    $savedSig = ImageProcessor::processBase64($formData[$sigField], $uploadDir, true);
                     if ($savedSig) {
                         $formData[$sigField] = 'assets/uploads/' . basename($savedSig);
                     } else {
@@ -231,11 +311,13 @@ class InspectionController {
                     }
                 }
             }
-            // -----------------------------------------------------
 
             foreach ($formData as $key => $val) {
-                if ($val === 'Odstaveno') { $setToStopped = true; } 
-                elseif ($val === 'V provozu') { $setToRunning = true; }
+                if ($val === 'Odstaveno') {
+                    $setToStopped = true;
+                } elseif ($val === 'V provozu') {
+                    $setToRunning = true;
+                }
 
                 if (is_array($val)) {
                     if (isset($val['status']) && $val['status'] === 'KO') {
@@ -259,7 +341,9 @@ class InspectionController {
                     $overallStatus = 'Odstaveno';
                     $pdo->prepare("UPDATE assets SET operational_status = 'stopped' WHERE id = ?")->execute([$asset_id]);
                 } else {
-                    if ($setToRunning) { $pdo->prepare("UPDATE assets SET operational_status = 'running' WHERE id = ?")->execute([$asset_id]); }
+                    if ($setToRunning) {
+                        $pdo->prepare("UPDATE assets SET operational_status = 'running' WHERE id = ?")->execute([$asset_id]);
+                    }
                     $overallStatus = $hasDefect ? 'KO' : 'OK';
                 }
 
@@ -267,43 +351,46 @@ class InspectionController {
                 $stmt->execute([$asset_id, $form_template_id, $technician_id, $overallStatus, $dataJson, $duration_seconds]);
                 $inspectionId = $pdo->lastInsertId();
 
-                if ($hasDefect && !$setToStopped) {
+                if ($hasDefect && !$setToStopped && SettingModel::isModuleEnabled('module_tickets')) {
                     $stmtTicket = $pdo->prepare("INSERT INTO tickets (inspection_id, asset_id, title, status) VALUES (?, ?, ?, 'open')");
                     $ticketTitle = mb_substr("Automatická závada z kontroly #" . $inspectionId . " (" . ($defectNote ?: 'Zjištěn stav KO') . ")", 0, 250);
                     $stmtTicket->execute([$inspectionId, $asset_id, $ticketTitle]);
                 }
 
                 $pdo->commit();
-
             } catch (Exception $e) {
                 $pdo->rollBack();
                 error_log("Transakce uložení inspekce selhala: " . $e->getMessage());
                 die("Chyba při ukládání záznamu do databáze. Zkuste to prosím znovu.");
             }
 
-            header('Location: index.php?page=qr_reader&saved=1'); exit;
+            header('Location: index.php?page=qr_reader&saved=1');
+            exit;
         }
     }
 
     public static function stats() {
         $asset_id = (int)($_GET['id'] ?? 0);
         if (!Auth::canAccessAsset($asset_id)) {
-            http_response_code(403); die("Přístup odepřen: Statistiky pro zařízení z jiného úseku nejsou dostupné.");
+            http_response_code(403);
+            die("Přístup odepřen: Statistiky pro zařízení z jiného úseku nejsou dostupné.");
         }
         $asset = AssetModel::getById($asset_id);
         if (!$asset) {
             renderView('asset_stats', [
                 'pageTitle' => 'Statistiky zařízení', 'asset' => ['name' => 'Neznámé zařízení', 'id' => 0],
                 'chartData' => [], 'errorMessage' => 'Zařízení nebylo nalezeno.'
-            ]); return;
+            ]);
+            return;
         }
 
         $pdo = Database::getConnection();
         $stmtForms = $pdo->prepare("SELECT schema_json FROM form_templates WHERE id IN (SELECT DISTINCT form_template_id FROM inspections WHERE asset_id = ?)");
         $stmtForms->execute([$asset_id]);
         $templates = $stmtForms->fetchAll();
-        
-        $fieldTypes = []; $labelMap = [];
+
+        $fieldTypes = [];
+        $labelMap = [];
         foreach ($templates as $tpl) {
             $schema = json_decode($tpl['schema_json'], true);
             if (is_array($schema)) {
@@ -320,13 +407,17 @@ class InspectionController {
         $inspections = $stmt->fetchAll();
         $rawSeries = [];
         foreach ($inspections as $insp) {
-            $timestamp = strtotime($insp['created_at']) * 1000;
-            $data = json_decode($insp['data_json'], true);
+            $timestamp = strtotime((string)$insp['created_at']) * 1000;
+            $data = json_decode((string)$insp['data_json'], true);
             if (is_array($data)) {
                 foreach ($data as $key => $value) {
                     if (is_numeric($value)) {
-                        if ($value > 1000000000) continue;
-                        if (!isset($rawSeries[$key])) { $rawSeries[$key] = []; }
+                        if ($value > 1000000000) {
+                            continue;
+                        }
+                        if (!isset($rawSeries[$key])) {
+                            $rawSeries[$key] = [];
+                        }
                         $rawSeries[$key][] = ['x' => $timestamp, 'val' => (float)$value];
                     }
                 }
@@ -336,23 +427,29 @@ class InspectionController {
         $chartData = [];
         foreach ($rawSeries as $key => $points) {
             $isCounter = isset($fieldTypes[$key]) && $fieldTypes[$key] === 'meter_reading';
-            $displayTitle = $labelMap[$key] ?? $key; 
+            $displayTitle = $labelMap[$key] ?? $key;
             if ($isCounter) {
-                $deltaPoints = []; $prevVal = null;
+                $deltaPoints = [];
+                $prevVal = null;
                 foreach ($points as $p) {
                     if ($prevVal !== null) {
-                        $diff = round($p['val'] - $prevVal, 2); if ($diff < 0) $diff = $p['val'];
+                        $diff = round($p['val'] - $prevVal, 2);
+                        if ($diff < 0) {
+                            $diff = $p['val'];
+                        }
                         $deltaPoints[] = ['x' => $p['x'], 'y' => $diff, 'total' => $p['val']];
                     }
                     $prevVal = $p['val'];
                 }
                 if (!empty($deltaPoints)) {
-                    $chartData[$key] = [ 'type' => 'bar', 'title' => $displayTitle . ' (Spotřeba)', 'points' => $deltaPoints, 'unit_prefix' => '+' ];
+                    $chartData[$key] = ['type' => 'bar', 'title' => $displayTitle . ' (Spotřeba)', 'points' => $deltaPoints, 'unit_prefix' => '+'];
                 }
             } else {
                 $areaPoints = [];
-                foreach ($points as $p) { $areaPoints[] = ['x' => $p['x'], 'y' => $p['val']]; }
-                $chartData[$key] = [ 'type' => 'area', 'title' => $displayTitle, 'points' => $areaPoints, 'unit_prefix' => '' ];
+                foreach ($points as $p) {
+                    $areaPoints[] = ['x' => $p['x'], 'y' => $p['val']];
+                }
+                $chartData[$key] = ['type' => 'area', 'title' => $displayTitle, 'points' => $areaPoints, 'unit_prefix' => ''];
             }
         }
 

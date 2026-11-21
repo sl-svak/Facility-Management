@@ -1,13 +1,14 @@
-# # Provozní nahrané soubory
-assets/uploads/
-
-# Lokální konfigurace
-.env
-
-# Systémové soubory
-.DS_Store
-Thumbs.db
+# Přihlašovací údaje a zámek instalace - NIKDY na veřejný Git
 config/config.php
-*~
-config/config.php
-*~
+config/installed.lock
+
+# Nahrané soubory uživatelů (fotky, podpisy, PDF protokoly) a dočasné soubory
+assets/uploads/*
+!assets/uploads/.gitkeep
+!assets/uploads/.htaccess
+app/libs/mpdf/tmp/*
+!app/libs/mpdf/tmp/.gitkeep
+
+# Zálohy a snímky obrazovky
+*.bak
+Screenshot_*.png

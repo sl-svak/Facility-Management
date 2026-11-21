@@ -56,10 +56,11 @@ class AssetModel {
         return $stmt->execute([$name, $description, $qrHash, $department_id]);
     }
 
-    public static function update($id, $name, $description = null, $department_id = null) {
+    public static function update($id, $name, $description = null, $department_id = null, $status = 'running') {
         $pdo = Database::getConnection();
-        $stmt = $pdo->prepare("UPDATE assets SET name = ?, description = ?, department_id = ? WHERE id = ?");
-        return $stmt->execute([$name, $description, $department_id, (int)$id]);
+        $status = ($status === 'stopped') ? 'stopped' : 'running';
+        $stmt = $pdo->prepare("UPDATE assets SET name = ?, description = ?, department_id = ?, operational_status = ? WHERE id = ?");
+        return $stmt->execute([$name, $description, $department_id, $status, (int)$id]);
     }
 
     // SOFT DELETE: Místo fyzického smazání pouze skryjeme zařízení

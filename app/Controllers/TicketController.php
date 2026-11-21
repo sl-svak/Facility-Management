@@ -113,7 +113,7 @@ class TicketController {
         
         // Podpis se zpracuje stejně jako fotky (ověření obrázku, limit velikosti) a uloží jako soubor
         require_once APP_ROOT . '/app/Core/ImageProcessor.php';
-        $savedSignature = ImageProcessor::processBase64($signature, APP_ROOT . '/assets/uploads');
+        $savedSignature = ImageProcessor::processBase64($signature, APP_ROOT . '/assets/uploads', true);
         if (!$savedSignature) {
             http_response_code(400);
             die("Chyba: Podpis má neplatný formát.");

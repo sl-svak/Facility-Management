@@ -57,6 +57,7 @@ $baseUrl = $protocol . $host . $path;
                         <th>ID</th>
                         <th>Název zařízení</th>
                         <th>Úsek</th>
+                        <th>Stav</th>
                         <th>Popis</th>
                         <th style="text-align: right;">Akce</th>
                     </tr>
@@ -82,7 +83,14 @@ $baseUrl = $protocol . $host . $path;
                                     <span style="color: var(--text-muted); font-size: 0.85em; font-style: italic;">Bez úseku</span>
                                 <?php endif; ?>
                             </td>
-                            <td><?= htmlspecialchars($a['description']) ?></td>
+                            <td>
+                                <?php if (($a['operational_status'] ?? 'running') === 'stopped'): ?>
+                                    <span style="background: rgba(231, 76, 60, 0.12); color: var(--danger); padding: 4px 8px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Odstaveno</span>
+                                <?php else: ?>
+                                    <span style="background: rgba(39, 174, 96, 0.12); color: var(--success); padding: 4px 8px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">V provozu</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= htmlspecialchars((string)($a['description'] ?? '')) ?></td>
                             <td style="text-align: right; white-space: nowrap;">
                                 
                                 <!-- TLAČÍTKO PRO STATISTIKY A GRAFY -->

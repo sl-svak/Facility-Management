@@ -1,75 +1,52 @@
 (function () {
-    'use strict';
+// Stránka PDF Reporty. Funkce se volají z HTML přes data-change (viz app.js).
+// Viditelnost se řídí atributem hidden, vzhled třídami ze style.css.
 
-    var periodModeEl = document.getElementById('report_period_mode');
-    var monthGroupEl = document.getElementById('report_month_group');
-    var outputModeEl = document.getElementById('report_output_mode');
-    var customTplGroupEl = document.getElementById('report_custom_template_group');
-    var tplSelectEl = document.getElementById('report_output_template_id');
-    var assetSelectEl = document.getElementById('report_asset_id');
-    var noTplHintEl = document.getElementById('report_no_tpl_hint');
-    var dataEl = document.getElementById('cmms-output-templates-data');
+var templatesByAsset = {};
+var dataEl = document.getElementById('cmms-output-templates-data');
+if (dataEl && dataEl.textContent) {
+    try { templatesByAsset = JSON.parse(dataEl.textContent) || {}; } catch (e) { templatesByAsset = {}; }
+}
 
-    var templatesByAsset = {};
-    if (dataEl && dataEl.textContent) {
-        try {
-            templatesByAsset = JSON.parse(dataEl.textContent) || {};
-        } catch (e) {
-            templatesByAsset = {};
-        }
-    }
+// Pole měsíce má smysl jen u měsíčního výkazu
+function syncReportPeriod() {
+    var mode = document.getElementById('report_period_mode');
+    var group = document.getElementById('report_month_group');
+    if (!mode || !group) return;
+    group.hidden = (mode.value !== 'month');
+}
 
-    function syncPeriodVisibility() {
-        if (!periodModeEl || !monthGroupEl) {
-            return;
-        }
-        monthGroupEl.style.display = (periodModeEl.value === 'month') ? '' : 'none';
-    }
+// Nabídka vlastních výstupních šablon podle vybraného zařízení
+function syncReportTemplates() {
+    var outputMode = document.getElementById('report_output_mode');
+    var group = document.getElementById('report_custom_template_group');
+    var select = document.getElementById('report_output_template_id');
+    var asset = document.getElementById('report_asset_id');
+    var hint = document.getElementById('report_no_tpl_hint');
+    if (!outputMode || !group || !select || !asset) return;
 
-    function syncTemplatesForAsset() {
-        if (!outputModeEl || !customTplGroupEl || !tplSelectEl || !assetSelectEl) {
-            return;
-        }
-        var isCustom = (outputModeEl.value === 'custom');
-        customTplGroupEl.style.display = isCustom ? '' : 'none';
+    var isCustom = (outputMode.value === 'custom');
+    group.hidden = !isCustom;
+    select.required = false;
+    if (!isCustom) return;
 
-        if (!isCustom) {
-            return;
-        }
+    var list = Array.isArray(templatesByAsset[String(asset.value || '')]) ? templatesByAsset[String(asset.value || '')] : [];
+    select.innerHTML = '';
+    list.forEach(function (tpl) {
+        var opt = document.createElement('option');
+        opt.value = String(tpl.id);
+        opt.textContent = tpl.paper_code ? (tpl.title + ' [' + tpl.paper_code + ']') : tpl.title;
+        select.appendChild(opt);
+    });
+    select.hidden = (list.length === 0);
+    select.required = (list.length > 0);
+    if (hint) hint.hidden = (list.length > 0);
+}
 
-        var assetId = String(assetSelectEl.value || '');
-        var list = Array.isArray(templatesByAsset[assetId]) ? templatesByAsset[assetId] : [];
+window.CMMS_ACTIONS = window.CMMS_ACTIONS || {};
+window.CMMS_ACTIONS.syncReportPeriod = syncReportPeriod;
+window.CMMS_ACTIONS.syncReportTemplates = syncReportTemplates;
 
-        tplSelectEl.innerHTML = '';
-        if (list.length === 0) {
-            if (noTplHintEl) {
-                noTplHintEl.style.display = '';
-            }
-            return;
-        }
-
-        if (noTplHintEl) {
-            noTplHintEl.style.display = 'none';
-        }
-
-        list.forEach(function (tpl) {
-            var opt = document.createElement('option');
-            opt.value = String(tpl.id);
-            opt.textContent = tpl.paper_code ? (tpl.title + ' [' + tpl.paper_code + ']') : tpl.title;
-            tplSelectEl.appendChild(opt);
-        });
-    }
-
-    if (periodModeEl) {
-        periodModeEl.addEventListener('change', syncPeriodVisibility);
-    }
-    if (outputModeEl) {
-        outputModeEl.addEventListener('change', syncTemplatesForAsset);
-    }
-    if (assetSelectEl) {
-        assetSelectEl.addEventListener('change', syncTemplatesForAsset);
-    }
-
-    syncPeriodVisibility();
-    syncTemplatesForAsset();
+syncReportPeriod();
+syncReportTemplates();
 })();

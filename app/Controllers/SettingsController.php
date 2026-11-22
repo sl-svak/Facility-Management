@@ -47,6 +47,10 @@ class SettingsController {
                 }
             }
 
+            if (isset($settings['app_font']) && !in_array($settings['app_font'], ['default', 'condensed', 'system'], true)) {
+                $settings['app_font'] = 'default';
+            }
+
             $checkboxKeys = [
                 'force_https',
                 'module_inspections',

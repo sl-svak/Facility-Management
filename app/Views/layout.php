@@ -36,6 +36,8 @@ if ($userPrefs['theme'] === 'light') $bodyClasses[] = 'theme-light';
 if ($userPrefs['theme'] === 'dark') $bodyClasses[] = 'theme-dark';
 if ($userPrefs['font_size'] === 'large') $bodyClasses[] = 'font-large';
 if ($userPrefs['qr_mode'] === 'auto') $bodyClasses[] = 'qr-auto';
+if ($globalAppFont === 'condensed') $bodyClasses[] = 'app-font-condensed';
+if ($globalAppFont === 'system') $bodyClasses[] = 'app-font-system';
 $bodyClassString = implode(' ', $bodyClasses);
 
 $currentPage = $_GET['page'] ?? 'dashboard';
@@ -54,8 +56,8 @@ $currentPage = $_GET['page'] ?? 'dashboard';
     <?php endif; ?>
 
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <?php if (!empty($globalAppFont) && $globalAppFont !== 'default'): ?>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= urlencode((string)$globalAppFont) ?>:wght@400;600;700&display=swap">
+    <?php if ($globalAppFont === 'condensed'): ?>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap">
     <?php endif; ?>
     <link rel="stylesheet" href="assets/css/style.css?v=<?= @filemtime('assets/css/style.css') ?: time() ?>">
 </head>

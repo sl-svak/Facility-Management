@@ -1,3 +1,4 @@
+<?php if (!defined('APP_ROOT')) exit; ?>
 <?php
 $editFieldsMap = [];
 if (!empty($editTemplate['fields_json'])) {
@@ -14,121 +15,113 @@ if (!empty($editTemplate['fields_json'])) {
         }
     }
 }
+
+$flashMessages = [
+    'created' => 'Nová výstupní šablona byla vytvořena.',
+    'saved'   => 'Výstupní šablona byla uložena.',
+    'copied'  => 'Výstupní šablona byla zkopírována na cílové zařízení.',
+    'deleted' => 'Výstupní šablona byla odstraněna.',
+];
 ?>
 
-<div class="card">
-    <h2>Šablony výstupních formulářů (oficiální evidence)</h2>
-    <p style="color: #555; margin-bottom: 18px;">
+<?php foreach ($flashMessages as $flashKey => $flashText): ?>
+    <?php if (!empty($_GET[$flashKey])): ?>
+        <div class="alert alert-success"><span class="material-symbols-outlined icon-inline">check_circle</span> <?= htmlspecialchars($flashText, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
+<?php endforeach; ?>
+<?php if (!empty($_GET['error'])): ?>
+    <div class="alert alert-danger"><span class="material-symbols-outlined icon-inline">error</span> <?= htmlspecialchars((string)$_GET['error'], ENT_QUOTES, 'UTF-8') ?></div>
+<?php endif; ?>
+
+<div class="card card-primary-top">
+    <h3 class="card-title">
+        <span class="material-symbols-outlined">description</span>
+        <?= !empty($editTemplate) ? 'Úprava výstupní šablony' : 'Nová výstupní šablona (oficiální evidence)' ?>
+    </h3>
+    <p class="card-intro">
         Sestavte vlastní tiskovou šablonu vázanou na konkrétní zařízení z vybraných evidovaných parametrů jeho kontrolních formulářů.
         Šablonu pak můžete zkopírovat na jiné zařízení se stejnými kontrolními formuláři nebo ji použít při exportu do PDF.
     </p>
 
-    <?php if (!empty($_GET['created'])): ?>
-        <div class="alert alert-success" style="padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf;">
-            Nová výstupní šablona byla vytvořena.
-        </div>
-    <?php elseif (!empty($_GET['saved'])): ?>
-        <div class="alert alert-success" style="padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf;">
-            Výstupní šablona byla uložena.
-        </div>
-    <?php elseif (!empty($_GET['copied'])): ?>
-        <div class="alert alert-success" style="padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf;">
-            Výstupní šablona byla zkopírována na cílové zařízení.
-        </div>
-    <?php elseif (!empty($_GET['deleted'])): ?>
-        <div class="alert alert-success" style="padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf;">
-            Výstupní šablona byla odstraněna.
-        </div>
-    <?php elseif (!empty($_GET['error'])): ?>
-        <div class="alert alert-danger" style="padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
-            <?= htmlspecialchars((string)$_GET['error'], ENT_QUOTES, 'UTF-8') ?>
-        </div>
-    <?php endif; ?>
-
-    <form method="GET" action="index.php" style="margin-bottom: 20px;">
+    <form method="GET" action="index.php" class="form-stack">
         <input type="hidden" name="page" value="output_templates">
-        <label for="filter_asset_id"><strong>Zařízení pro sestavení šablony:</strong></label>
-        <select name="asset_id" id="filter_asset_id" data-change="submitForm">
-            <?php foreach ($assets as $a): ?>
-                <option value="<?= (int)$a['id'] ?>" <?= ((int)$a['id'] === (int)$selectedAssetId) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars((string)$a['name'], ENT_QUOTES, 'UTF-8') ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
+        <div class="form-field">
+            <label class="form-label" for="filter_asset_id">Zařízení pro sestavení šablony</label>
+            <select name="asset_id" id="filter_asset_id" class="form-control" data-change="submitForm">
+                <?php foreach ($assets as $a): ?>
+                    <option value="<?= (int)$a['id'] ?>" <?= ((int)$a['id'] === (int)$selectedAssetId) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars((string)$a['name'], ENT_QUOTES, 'UTF-8') ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
     </form>
 
     <?php if ($selectedAssetId > 0): ?>
-        <form method="POST" action="index.php?page=output_template_save" id="outputTemplateForm">
+        <form method="POST" action="index.php?page=output_template_save" id="outputTemplateForm" class="form-stack">
             <?= Security::csrfField() ?>
             <input type="hidden" name="id" value="<?= !empty($editTemplate) ? (int)$editTemplate['id'] : 0 ?>">
             <input type="hidden" name="asset_id" value="<?= (int)$selectedAssetId ?>">
 
-            <div class="form-group">
-                <label for="out_tpl_title">Název výstupní šablony</label>
-                <input type="text" id="out_tpl_title" name="title"
-                       value="<?= htmlspecialchars((string)($editTemplate['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                       placeholder="např. Evidenční list denní kontroly" required>
+            <div class="form-row">
+                <div class="form-field">
+                    <label class="form-label" for="out_tpl_title">Název výstupní šablony *</label>
+                    <input type="text" id="out_tpl_title" name="title" class="form-control"
+                           value="<?= htmlspecialchars((string)($editTemplate['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                           placeholder="např. Evidenční list denní kontroly" required>
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="out_tpl_paper_code">Kód papírové evidence</label>
+                    <input type="text" id="out_tpl_paper_code" name="paper_code" class="form-control"
+                           value="<?= htmlspecialchars((string)($editTemplate['paper_code'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                           placeholder="např. F-UDR-012">
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="out_tpl_source_form">Hlavní kontrolní formulář</label>
+                    <select id="out_tpl_source_form" name="source_form_template_id" class="form-control">
+                        <option value="">-- Všechny formuláře zařízení --</option>
+                        <?php foreach ($assetFormsWithFields as $fg): ?>
+                            <option value="<?= (int)$fg['id'] ?>"
+                                <?= (!empty($editTemplate['source_form_template_id']) && (int)$editTemplate['source_form_template_id'] === (int)$fg['id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars((string)$fg['title'], ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="out_tpl_paper_code">Kód / číslo papírové evidence (volitelné)</label>
-                <input type="text" id="out_tpl_paper_code" name="paper_code"
-                       value="<?= htmlspecialchars((string)($editTemplate['paper_code'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                       placeholder="např. F-UDR-012">
+            <div class="form-field mt-15">
+                <label class="form-label" for="out_tpl_header_note">Poznámka / záhlaví pro oficiální tisk</label>
+                <textarea id="out_tpl_header_note" name="header_note" class="form-control" placeholder="např. Záznam nahrazuje tištěný provozní deník"><?= htmlspecialchars((string)($editTemplate['header_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
             </div>
 
-            <div class="form-group">
-                <label for="out_tpl_source_form">Hlavní kontrolní formulář (orientační vazba)</label>
-                <select id="out_tpl_source_form" name="source_form_template_id">
-                    <option value="">-- Všechny kontrolní formuláře zařízení --</option>
-                    <?php foreach ($assetFormsWithFields as $fg): ?>
-                        <option value="<?= (int)$fg['id'] ?>"
-                            <?= (!empty($editTemplate['source_form_template_id']) && (int)$editTemplate['source_form_template_id'] === (int)$fg['id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars((string)$fg['title'], ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="out_tpl_header_note">Poznámka / záhlaví pro oficiální tisk</label>
-                <textarea id="out_tpl_header_note" name="header_note" rows="2" placeholder="např. Záznam nahrazuje tištěný provozní deník"><?= htmlspecialchars((string)($editTemplate['header_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
-            </div>
-
-            <div class="form-group">
-                <label>
+            <div class="form-row">
+                <label class="form-check">
                     <input type="checkbox" name="show_signatures" value="1"
                         <?= (!isset($editTemplate['show_signatures']) || (int)$editTemplate['show_signatures'] === 1) ? 'checked' : '' ?>>
                     Zobrazovat elektronické podpisy
                 </label>
-            </div>
-
-            <div class="form-group">
-                <label>
+                <label class="form-check">
                     <input type="checkbox" name="show_photos" value="1"
                         <?= (!isset($editTemplate['show_photos']) || (int)$editTemplate['show_photos'] === 1) ? 'checked' : '' ?>>
                     Zobrazovat fotografie kontrol a oprav
                 </label>
             </div>
 
-            <h3>Parametry evidované u tohoto zařízení</h3>
+            <h3 class="card-title mt-15"><span class="material-symbols-outlined">checklist</span> Parametry evidované u tohoto zařízení</h3>
             <?php if (empty($assetFormsWithFields)): ?>
-                <p style="color: #7f8c8d;">
-                    K tomuto zařízení nejsou zatím přiřazeny žádné aktivní kontrolní formuláře (v sekci Plánování údržby).
-                </p>
+                <p class="empty-note">K tomuto zařízení nejsou zatím přiřazeny žádné aktivní kontrolní formuláře (v sekci Plánování údržby).</p>
             <?php else: ?>
-                <p style="color: #555; margin-bottom: 10px;">
-                    Zaškrtněte parametry, které mají být zahrnuty do výstupního PDF, a případně upravte jejich pořadí nebo název pro tisk:
-                </p>
-                <div style="overflow-x: auto;">
-                    <table class="table" style="width: 100%; border-collapse: collapse;">
+                <p class="card-intro">Zaškrtněte parametry, které mají být ve výstupním PDF, a případně upravte jejich pořadí nebo název pro tisk.</p>
+                <div class="table-responsive">
+                    <table class="table">
                         <thead>
                             <tr>
-                                <th style="width: 60px;">Tisk</th>
+                                <th style="width: 60px; text-align: center;">Tisk</th>
                                 <th>Kontrolní formulář</th>
                                 <th>Evidovaný parametr</th>
                                 <th style="width: 110px;">Pořadí</th>
-                                <th>Vlastní název pro tisk (volitelné)</th>
+                                <th>Vlastní název pro tisk</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -144,22 +137,20 @@ if (!empty($editTemplate['fields_json'])) {
                         ?>
                             <tr>
                                 <td style="text-align: center;">
-                                    <input type="checkbox" name="selected_fields[]" value="<?= htmlspecialchars($fid, ENT_QUOTES, 'UTF-8') ?>"
-                                        <?= $isChecked ? 'checked' : '' ?>>
+                                    <input type="checkbox" name="selected_fields[]" value="<?= htmlspecialchars($fid, ENT_QUOTES, 'UTF-8') ?>" <?= $isChecked ? 'checked' : '' ?>>
                                 </td>
                                 <td><?= htmlspecialchars((string)$fg['title'], ENT_QUOTES, 'UTF-8') ?></td>
-                                <td>
-                                    <strong><?= htmlspecialchars((string)$fld['label'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                <td class="text-strong">
+                                    <?= htmlspecialchars((string)$fld['label'], ENT_QUOTES, 'UTF-8') ?>
                                     <?php if (!empty($fld['unit'])): ?>
-                                        <small>(<?= htmlspecialchars((string)$fld['unit'], ENT_QUOTES, 'UTF-8') ?>)</small>
+                                        <span class="text-small text-muted">(<?= htmlspecialchars((string)$fld['unit'], ENT_QUOTES, 'UTF-8') ?>)</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <input type="number" name="field_order[<?= htmlspecialchars($fid, ENT_QUOTES, 'UTF-8') ?>]"
-                                           value="<?= (int)$ordVal ?>" style="width: 80px;">
+                                    <input type="number" name="field_order[<?= htmlspecialchars($fid, ENT_QUOTES, 'UTF-8') ?>]" class="form-control" value="<?= (int)$ordVal ?>">
                                 </td>
                                 <td>
-                                    <input type="text" name="field_custom_label[<?= htmlspecialchars($fid, ENT_QUOTES, 'UTF-8') ?>]"
+                                    <input type="text" name="field_custom_label[<?= htmlspecialchars($fid, ENT_QUOTES, 'UTF-8') ?>]" class="form-control"
                                            value="<?= htmlspecialchars($custLbl, ENT_QUOTES, 'UTF-8') ?>"
                                            placeholder="<?= htmlspecialchars((string)$fld['label'], ENT_QUOTES, 'UTF-8') ?>">
                                 </td>
@@ -172,33 +163,36 @@ if (!empty($editTemplate['fields_json'])) {
                     </table>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="margin-top: 16px;">
-                    <?= !empty($editTemplate) ? 'Uložit změny šablony' : 'Vytvořit výstupní šablonu' ?>
-                </button>
-                <?php if (!empty($editTemplate)): ?>
-                    <a href="index.php?page=output_templates&asset_id=<?= (int)$selectedAssetId ?>" class="btn" style="margin-top: 16px;">Zrušit úpravu</a>
-                <?php endif; ?>
+                <div class="form-actions">
+                    <?php if (!empty($editTemplate)): ?>
+                        <a href="index.php?page=output_templates&asset_id=<?= (int)$selectedAssetId ?>" class="btn btn-muted">Zrušit úpravu</a>
+                    <?php endif; ?>
+                    <button type="submit" class="btn btn-success">
+                        <span class="material-symbols-outlined">save</span>
+                        <?= !empty($editTemplate) ? 'Uložit změny šablony' : 'Vytvořit výstupní šablonu' ?>
+                    </button>
+                </div>
             <?php endif; ?>
         </form>
     <?php endif; ?>
 </div>
 
-<div class="card" style="margin-top: 24px;">
-    <h3>Existující šablony výstupních formulářů a přenos na jiné zařízení</h3>
+<div class="card">
+    <h3 class="card-title"><span class="material-symbols-outlined">content_copy</span> Existující šablony a přenos na jiné zařízení</h3>
 
     <?php if (empty($templates)): ?>
-        <p style="color: #7f8c8d;">Zatím nejsou vytvořeny žádné vlastní výstupní šablony.</p>
+        <p class="empty-note">Zatím nejsou vytvořeny žádné vlastní výstupní šablony.</p>
     <?php else: ?>
-        <div style="overflow-x: auto;">
-            <table class="table" style="width: 100%; border-collapse: collapse;">
+        <div class="table-responsive">
+            <table class="table">
                 <thead>
                     <tr>
                         <th>Zařízení</th>
                         <th>Název šablony</th>
                         <th>Kód</th>
-                        <th>Počet položek</th>
+                        <th>Položek</th>
                         <th>Kopírování na jiné zařízení</th>
-                        <th>Akce</th>
+                        <th style="text-align: right;">Akce</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -209,35 +203,41 @@ if (!empty($editTemplate['fields_json'])) {
                     $compatTargets = $compatibleTargetsMap[$tid] ?? [];
                 ?>
                     <tr>
-                        <td><?= htmlspecialchars((string)$tpl['asset_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><strong><?= htmlspecialchars((string)$tpl['title'], ENT_QUOTES, 'UTF-8') ?></strong></td>
-                        <td><?= htmlspecialchars((string)($tpl['paper_code'] ?? '–'), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td class="text-primary-strong"><?= htmlspecialchars((string)$tpl['asset_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td class="text-strong"><?= htmlspecialchars((string)$tpl['title'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars((string)($tpl['paper_code'] ?? '---'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= (int)$itemCount ?></td>
                         <td>
                             <?php if (empty($compatTargets)): ?>
-                                <small style="color: #7f8c8d;">Žádné jiné zařízení se stejnými kontrolními formuláři</small>
+                                <span class="empty-note text-small">Žádné jiné zařízení se stejnými kontrolními formuláři</span>
                             <?php else: ?>
-                                <form method="POST" action="index.php?page=output_template_copy" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                                <form method="POST" action="index.php?page=output_template_copy" class="form-row">
                                     <?= Security::csrfField() ?>
                                     <input type="hidden" name="template_id" value="<?= $tid ?>">
-                                    <select name="target_asset_id" required>
-                                        <?php foreach ($compatTargets as $ct): ?>
-                                            <option value="<?= (int)$ct['id'] ?>">
-                                                <?= htmlspecialchars((string)$ct['name'], ENT_QUOTES, 'UTF-8') ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <input type="text" name="new_title" placeholder="Nový název (volitelné)" style="max-width: 170px;">
-                                    <button type="submit" class="btn">Kopírovat</button>
+                                    <div class="form-field">
+                                        <select name="target_asset_id" class="form-control" required>
+                                            <?php foreach ($compatTargets as $ct): ?>
+                                                <option value="<?= (int)$ct['id'] ?>"><?= htmlspecialchars((string)$ct['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="form-field">
+                                        <input type="text" name="new_title" class="form-control" placeholder="Nový název (volitelné)">
+                                    </div>
+                                    <div>
+                                        <button type="submit" class="btn btn-info btn-sm"><span class="material-symbols-outlined">content_copy</span> Kopírovat</button>
+                                    </div>
                                 </form>
                             <?php endif; ?>
                         </td>
-                        <td style="white-space: nowrap;">
-                            <a href="index.php?page=output_templates&edit_id=<?= $tid ?>" class="btn">Upravit</a>
-                            <form method="POST" action="index.php?page=output_template_delete" style="display: inline;" data-confirm="Opravdu smazat tuto výstupní šablonu?">
+                        <td style="text-align: right; white-space: nowrap;">
+                            <a href="index.php?page=output_templates&edit_id=<?= $tid ?>" class="btn btn-warning btn-sm"><span class="material-symbols-outlined">edit</span> Upravit</a>
+                            <form method="POST" action="index.php?page=output_template_delete" class="inline-form">
                                 <?= Security::csrfField() ?>
                                 <input type="hidden" name="id" value="<?= $tid ?>">
-                                <button type="submit" class="btn btn-danger">Smazat</button>
+                                <button type="submit" class="btn btn-danger btn-sm" title="Smazat šablonu" data-confirm="Opravdu chcete smazat tuto výstupní šablonu?">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
                             </form>
                         </td>
                     </tr>

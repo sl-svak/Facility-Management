@@ -1,107 +1,123 @@
-<?php
-$appName = htmlspecialchars((string)($settings['app_name'] ?? 'CMMS Cosmonde'), ENT_QUOTES, 'UTF-8');
-$appFont = (string)($settings['app_font'] ?? '');
-$forceHttps = (($settings['force_https'] ?? '0') === '1');
-$shiftStartHour = (int)($settings['shift_start_hour'] ?? 0);
-$workweekDays = (int)($settings['workweek_days'] ?? 5);
+<?php if (!defined('APP_ROOT')) exit; ?>
 
-$modInspections = (($settings['module_inspections'] ?? '1') === '1');
-$modExternalAudits = (($settings['module_external_audits'] ?? '1') === '1');
-$modOutputTemplates = (($settings['module_output_templates'] ?? '1') === '1');
-$modTickets = (($settings['module_tickets'] ?? '1') === '1');
-?>
-
-<div class="card">
-    <h2>Globální nastavení systému (v2.0)</h2>
-
-    <?php if (!empty($_GET['success'])): ?>
-        <div class="alert alert-success" style="padding: 12px 16px; margin-bottom: 20px; border-radius: 6px; background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf;">
-            Nastavení bylo úspěšně uloženo.
+<div class="card card-primary-top" style="max-width: 600px; margin: 0 auto;">
+    <h3 style="margin-top:0;">
+        <span class="material-symbols-outlined" style="vertical-align: middle;">settings</span> Globální nastavení systému
+    </h3>
+    
+    <?php if (isset($_GET['success'])): ?>
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined icon-inline">check_circle</span>
+            Uloženo! Nastavení bylo úspěšně aktualizováno.
         </div>
     <?php endif; ?>
 
     <form method="POST" action="index.php?page=settings_save" enctype="multipart/form-data">
+        
+        <!-- OCHRANA CSRF -->
         <?= Security::csrfField() ?>
 
-        <h3>Základní a provozní nastavení</h3>
-
-        <div class="form-group">
-            <label for="app_name">Název aplikace</label>
-            <input type="text" id="app_name" name="settings[app_name]" value="<?= $appName ?>" required>
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Název aplikace (zobrazí se v hlavičce a menu) *</label>
+            <input type="text" name="settings[app_name]" value="<?= htmlspecialchars($settings['app_name'] ?? 'CMMS') ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1.1em; background: var(--card-bg); color: var(--text-main);">
         </div>
 
-        <div class="form-group">
-            <label for="app_font">Font aplikace (volitelně)</label>
-            <input type="text" id="app_font" name="settings[app_font]" value="<?= htmlspecialchars($appFont, ENT_QUOTES, 'UTF-8') ?>" placeholder="např. Inter, Roboto">
-        </div>
-
-        <div class="form-group">
-            <label for="shift_start_hour">Začátek provozního dne / směny (hodina 0–23)</label>
-            <input type="number" id="shift_start_hour" name="settings[shift_start_hour]" min="0" max="23" value="<?= $shiftStartHour ?>">
-        </div>
-
-        <div class="form-group">
-            <label for="workweek_days">Pracovní dny v týdnu</label>
-            <select id="workweek_days" name="settings[workweek_days]">
-                <option value="5" <?= $workweekDays === 5 ? 'selected' : '' ?>>5denní provoz (víkendové termíny se přesouvají na pondělí)</option>
-                <option value="7" <?= $workweekDays === 7 ? 'selected' : '' ?>>7denní nepřetržitý provoz</option>
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Typ písma (Zobrazení na mobilu) *</label>
+            <select name="settings[app_font]" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1em; background: var(--card-bg); color: var(--text-main);">
+                <option value="default" <?= (!isset($settings['app_font']) || $settings['app_font'] === 'default') ? 'selected' : '' ?>>
+                    Výchozí (Standardní širší font z CSS)
+                </option>
+                <option value="condensed" <?= (isset($settings['app_font']) && $settings['app_font'] === 'condensed') ? 'selected' : '' ?>>
+                    Úsporný z internetu (Roboto Condensed - užší znaky, více informací na řádku)
+                </option>
+                <option value="system" <?= (isset($settings['app_font']) && $settings['app_font'] === 'system') ? 'selected' : '' ?>>
+                    Nativní systémový (Výchozí font mobilu - nejužší integrace, nenačítá data)
+                </option>
             </select>
+            <div style="font-size: 0.85em; color: var(--text-muted); margin-top: 5px;">
+                Úsporné varianty mírně zmenší základní velikost písma (na 14px) a zlepší čitelnost tabulek na malých displejích.
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="settings[force_https]" value="1" <?= $forceHttps ? 'checked' : '' ?>>
-                Vynutit přesměrování na HTTPS
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Režim plánování údržby *</label>
+            <select name="settings[workweek_days]" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1em; background: var(--card-bg); color: var(--text-main);">
+                <option value="5" <?= (!isset($settings['workweek_days']) || $settings['workweek_days'] == 5) ? 'selected' : '' ?>>
+                    5denní provoz (Po - Pá, víkendy se přeskakují)
+                </option>
+                <option value="7" <?= (isset($settings['workweek_days']) && $settings['workweek_days'] == 7) ? 'selected' : '' ?>>
+                    7denní provoz (Nepřetržitě včetně víkendů)
+                </option>
+            </select>
+            <div style="font-size: 0.85em; color: var(--text-muted); margin-top: 5px;">
+                Při 5denním provozu se denní kontroly z pátku automaticky naplánují až na pondělí, aby o víkendu nepropadly.
+            </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Začátek nového dne pro údržbu (Hodina) *</label>
+            <input type="number" min="0" max="23" name="settings[shift_start_hour]" value="<?= htmlspecialchars($settings['shift_start_hour'] ?? '0') ?>" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1.1em; background: var(--card-bg); color: var(--text-main);">
+            <div style="font-size: 0.85em; color: var(--text-muted); margin-top: 5px;">
+                Pokud máte noční provoz, zadejte hodinu (např. <strong>6</strong> pro 06:00), od kdy se láme "nový den". Úkony provedené po půlnoci tak stále spadnou do předchozího dne a neposunou nechtěně plány. Výchozí hodnota <strong>0</strong> odpovídá běžné půlnoci.
+            </div>
+        </div>
+
+        <!-- NOVÉ POLE: ZABEZPEČENÍ HTTPS -->
+        <div style="margin-bottom: 20px; padding: 15px; background: var(--background); border: 1px solid var(--border-color); border-radius: 6px;">
+            <h4 style="margin-top: 0; color: var(--text-main);">
+                <span class="material-symbols-outlined" style="vertical-align: middle; color: var(--info);">lock</span> 
+                Zabezpečení spojení
+            </h4>
+            <label style="display: flex; align-items: center; cursor: pointer; font-weight: bold; color: var(--text-main);">
+                <input type="checkbox" name="settings[force_https]" value="1" <?= (isset($settings['force_https']) && $settings['force_https'] === '1') ? 'checked' : '' ?> style="transform: scale(1.3); margin-right: 12px;">
+                Vynutit šifrované spojení (HTTPS)
             </label>
+            <p style="margin: 5px 0 0 25px; font-size: 0.85em; color: var(--text-muted);">
+                Pokud je zapnuto, systém automaticky přesměruje všechny uživatele z nezabezpečeného HTTP na HTTPS. 
+                Vyžaduje aktivní SSL certifikát na hostingu.
+            </p>
         </div>
 
-        <div class="form-group">
-            <label for="favicon">Vlastní ikona prohlížeče (Favicon – PNG, JPG, ICO, max. 2 MB)</label>
-            <input type="file" id="favicon" name="favicon" accept=".png,.jpg,.jpeg,.ico">
+        <!-- VOLITELNÉ MODULY (v2.0) -->
+        <div style="margin-bottom: 20px; padding: 15px; background: var(--background); border: 1px solid var(--border-color); border-radius: 6px;">
+            <h4 style="margin-top: 0; color: var(--text-main);">
+                <span class="material-symbols-outlined" style="vertical-align: middle; color: var(--info);">extension</span>
+                Aktivní moduly
+            </h4>
+            <p style="margin: 0 0 10px 0; font-size: 0.85em; color: var(--text-muted);">
+                Vypnutý modul zmizí z menu, dashboardu i pracovních stránek. <strong>Data v databázi se nesmažou</strong> a po zapnutí jsou opět k dispozici.
+            </p>
+<?php foreach ([
+    'module_inspections'      => ['Kontroly a plány údržby', 'pravidelné kontroly strojů, formuláře a semafor termínů'],
+    'module_tickets'          => ['Správa závad (tikety)', 'sledování a uzavírání závad zjištěných při kontrolách'],
+    'module_external_audits'  => ['Externí revize a dodavatelé', 'revize externími firmami, termíny a PDF protokoly'],
+    'module_output_templates' => ['Výstupní šablony', 'vlastní tiskové sestavy z vybraných parametrů zařízení'],
+] as $modKey => $modInfo): ?>
+            <label style="display: flex; align-items: center; cursor: pointer; font-weight: bold; color: var(--text-main); margin-top: 8px;">
+                <input type="checkbox" name="settings[<?= $modKey ?>]" value="1" <?= (($settings[$modKey] ?? '1') === '1') ? 'checked' : '' ?> style="transform: scale(1.3); margin-right: 12px;">
+                <?= htmlspecialchars($modInfo[0], ENT_QUOTES, 'UTF-8') ?>
+            </label>
+            <p style="margin: 0 0 0 25px; font-size: 0.85em; color: var(--text-muted);"><?= htmlspecialchars($modInfo[1], ENT_QUOTES, 'UTF-8') ?></p>
+<?php endforeach; ?>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-muted);">Favicona (Ikonka v záložce prohlížeče)</label>
+            
             <?php if (!empty($settings['favicon_path'])): ?>
-                <div style="margin-top: 8px;">
-                    <img src="<?= htmlspecialchars((string)$settings['favicon_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Aktuální favicon" style="width: 32px; height: 32px; vertical-align: middle;">
-                    <small>Aktuální ikona</small>
+                <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                    <img src="<?= htmlspecialchars($settings['favicon_path']) ?>" alt="Favicon" style="max-height: 32px; border-radius: 4px; border: 1px solid var(--border-color); padding: 2px; background: #fff;">
+                    <span style="font-size: 0.9em; color: var(--success);">Aktuální ikonka</span>
                 </div>
             <?php endif; ?>
+            
+            <input type="file" name="favicon" accept=".png,.ico,.jpg,.jpeg" style="width: 100%; padding: 10px; background: var(--background); color: var(--text-main); border: 1px dashed var(--border-color); border-radius: 4px; box-sizing: border-box;">
+            <div style="font-size: 0.85em; color: var(--text-muted); margin-top: 5px;">Podporované formáty: PNG, ICO, JPG (max. 2 MB). Doporučený rozměr 32x32 nebo 64x64 px.</div>
         </div>
 
-        <hr style="margin: 25px 0;">
-
-        <h3>Aktivní moduly (přizpůsobení pro malé projekty)</h3>
-        <p style="color: #555; margin-bottom: 15px;">
-            Vypnutím modulu skryjete jeho funkce z menu, dashboardu i pracovních stránek, aby rozhraní zůstalo přehledné.
-            <strong>Existující data v databázi se nesmažou</strong> a po opětovném zapnutí modulu zůstanou k dispozici.
-        </p>
-
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="settings[module_inspections]" value="1" <?= $modInspections ? 'checked' : '' ?>>
-                <strong>Kontroly a plány údržby</strong> – pravidelné kontroly strojů, kontrolní formuláře a semafor termínů
-            </label>
-        </div>
-
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="settings[module_external_audits]" value="1" <?= $modExternalAudits ? 'checked' : '' ?>>
-                <strong>Externí revize a dodavatelé</strong> – revize externími firmami, termíny a PDF protokoly
-            </label>
-        </div>
-
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="settings[module_output_templates]" value="1" <?= $modOutputTemplates ? 'checked' : '' ?>>
-                <strong>Vlastní šablony výstupních formulářů</strong> – uživatelsky zvolené parametry pro oficiální tiskové sestavy
-            </label>
-        </div>
-
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="settings[module_tickets]" value="1" <?= $modTickets ? 'checked' : '' ?>>
-                <strong>Správa závad (tikety)</strong> – sledování a uzavírání závad zjištěných při kontrolách
-            </label>
-        </div>
-
-        <button type="submit" class="btn btn-primary" style="margin-top: 20px;">Uložit nastavení</button>
+        <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.1em; padding: 12px;">
+            <span class="material-symbols-outlined" style="vertical-align: middle;">save</span> Uložit nastavení
+        </button>
     </form>
 </div>

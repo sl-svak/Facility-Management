@@ -371,3 +371,111 @@ body.theme-dark .badge-closed { background: #153820; color: #a8deb8; }
 }
 .chart-box { position: relative; height: 300px; }
 
+
+/* ==========================================================================
+   SPOLEČNÉ KOMPONENTY v2.0 (odvozeno z původního vzhledu: plány, zařízení)
+   Vizuální pravidla patří sem, ne do PHP šablon ani do JS.
+   ========================================================================== */
+
+/* Nadpisy karet s ikonou */
+.card-title { margin-top: 0; color: var(--text-main); }
+.card-title .material-symbols-outlined,
+.icon-inline { vertical-align: middle; }
+.card-intro { color: var(--text-muted); font-size: 0.9em; margin-bottom: 15px; }
+.card-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.card-header-row .card-title { margin-bottom: 0; }
+.card-accent-warning { border-top: 4px solid var(--warning); }
+.card-accent-info { border-top: 4px solid var(--info); }
+.card-narrow { max-width: 600px; margin-left: auto; margin-right: auto; }
+.empty-note { color: var(--text-muted); font-style: italic; }
+.text-muted { color: var(--text-muted); }
+.text-strong { font-weight: bold; color: var(--text-main); }
+.text-primary-strong { font-weight: bold; color: var(--primary); }
+.text-small { font-size: 0.85em; }
+.mt-15 { margin-top: 15px; }
+
+/* Formuláře */
+.form-row { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
+.form-row + .form-row { margin-top: 15px; }
+.form-field { flex: 1; min-width: 200px; }
+.form-field-sm { width: 130px; }
+.form-stack .form-field { margin-bottom: 15px; }
+.form-label { display: block; font-weight: bold; margin-bottom: 5px; color: var(--text-main); }
+.form-hint { display: block; margin-top: 5px; color: var(--text-muted); font-size: 0.85em; }
+.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box;
+    background: var(--card-bg);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 1em;
+}
+textarea.form-control { min-height: 70px; resize: vertical; }
+.form-check { display: flex; align-items: center; gap: 8px; color: var(--text-main); cursor: pointer; }
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.inline-form { display: inline-block; margin: 0; }
+
+/* Menší tlačítka v tabulkách a neutrální tlačítko */
+.btn-sm { padding: 6px 12px; font-size: 0.9em; }
+.btn-muted { background-color: var(--text-muted); color: #fff; }
+.btn .material-symbols-outlined { vertical-align: middle; font-size: 1.2em; }
+
+/* Hlášení po akci */
+.alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-weight: bold; border: 1px solid; }
+.alert-success { background: rgba(39, 174, 96, 0.15); color: var(--success); border-color: var(--success); }
+.alert-danger { background: rgba(231, 76, 60, 0.15); color: var(--danger); border-color: var(--danger); }
+
+/* Stavové odznaky (doplněk k .badge-open / .badge-closed) */
+.badge-icon { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.badge-icon .material-symbols-outlined { font-size: 1.2em; }
+.badge-warning { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+.badge-info { background: rgba(41, 128, 185, 0.15); color: var(--info); }
+.badge-muted { background: rgba(149, 165, 166, 0.2); color: var(--text-muted); }
+.badge-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Zvýraznění termínů */
+.due-danger { color: var(--danger); font-weight: bold; }
+.due-warning { color: var(--warning); font-weight: bold; }
+.due-ok { color: var(--success); font-weight: bold; }
+
+/* Statistické karty na dashboardu */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 20px; }
+.stat-card { text-align: center; margin-bottom: 0; }
+.stat-card .material-symbols-outlined { font-size: 3em; }
+.stat-card .stat-value { font-size: 2.5em; margin: 10px 0; color: var(--text-main); }
+.stat-card .stat-label { color: var(--text-muted); margin: 0; font-weight: bold; }
+.stat-info { border-top: 4px solid var(--info); }
+.stat-info .material-symbols-outlined { color: var(--info); }
+.stat-success { border-top: 4px solid var(--success); }
+.stat-success .material-symbols-outlined { color: var(--success); }
+.stat-danger { border-top: 4px solid var(--danger); }
+.stat-danger .material-symbols-outlined { color: var(--danger); }
+.stat-warning { border-top: 4px solid var(--warning); }
+.stat-warning .material-symbols-outlined { color: var(--warning); }
+
+/* Modální okna (stejný vzhled jako úprava plánu údržby) */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+.modal-card { width: 100%; max-width: 500px; margin: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto; }
+.modal-card .card-title { color: var(--primary); }
+.modal-subtitle { font-weight: bold; color: var(--text-main); margin-bottom: 20px; font-size: 1.1em; }
+
+/* Jednoduchý seznam v kartě */
+.plain-list { margin: 15px 0 0 0; padding-left: 18px; color: var(--text-main); }
+.plain-list small { color: var(--text-muted); }
+
+/* Písmo aplikace podle Nastavení (úsporné varianty mají menší základní velikost) */
+body.app-font-condensed { font-family: 'Roboto Condensed', 'Segoe UI', Tahoma, sans-serif; }
+body.app-font-system { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+body.app-font-condensed:not(.font-large), body.app-font-system:not(.font-large) { font-size: 14px; }

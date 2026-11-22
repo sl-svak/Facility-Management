@@ -1,5 +1,5 @@
 // Zvyšte verzi při změně tohoto souboru nebo předkešovaných souborů.
-const CACHE_NAME = 'cmms-v5';
+const CACHE_NAME = 'cmms-v6';
 const PRECACHE = [
     'assets/css/style.css',
     'assets/js/app.js',

@@ -11,7 +11,11 @@ Options -Indexes
 </IfModule>
 
 # 3. Ochrana specifických souborů před přímým zobrazením
-<FilesMatch "^(config\.sample\.php|\.htaccess|install\.php)$">
+#    install.php zde záměrně NENÍ: musí jít otevřít pro první instalaci a po jejím
+#    dokončení se sám zablokuje (config/config.php nebo config/installed.lock).
+#    Zálohy (*.bak, např. update.php.bak po aktualizaci) by jinak server vydal jako
+#    čitelný text se zdrojovým kódem.
+<FilesMatch "(^config\.sample\.php$|^\.htaccess$|^installed\.lock$|^install\.pending$|\.(bak|old|orig|swp)$|~$)">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

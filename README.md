@@ -47,6 +47,9 @@ Jak postupovat při instalaci: https://github.com/sl-svak/Facility-Management/wi
 
 1. Nahrajte všechny soubory na hosting (FTP / správce souborů). Nic dalšího se na serveru neinstaluje.
 2. Otevřete `install.php`, zadejte údaje k databázi a vytvořte administrátora. Po dokončení se instalátor sám smaže.
+   - Instalátor se tvrdě zablokuje (HTTP 403), jakmile existuje `config/config.php` nebo `config/installed.lock`, a to bez ohledu na stav databáze. Pokud se nepodaří smazat `install.php` automaticky, smažte ho přes FTP.
+   - Krok 2 (založení administrátora) lze dokončit jen ve stejném prohlížeči, ve kterém proběhl krok 1. Když instalaci mezi kroky přerušíte (zavřete prohlížeč), smažte přes FTP `config/config.php` a `config/install.pending` a začněte znovu.
+   - Instalaci opakujete jen ručně: smažte přes FTP `config/config.php`, `config/installed.lock` a `config/install.pending` a nahrajte znovu `install.php`.
 3. Složky `assets/uploads/` a `app/libs/mpdf/tmp/` musí být zapisovatelné webserverem. První export PDF může trvat o pár sekund déle (mPDF si vytváří cache fontů).
 
 ## ⬆️ Aktualizace aplikace

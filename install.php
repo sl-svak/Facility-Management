@@ -3,52 +3,62 @@
 ini_set('display_errors', 0);
 error_reporting(0);
 
+ini_set('session.use_strict_mode', 1);
+ini_set('session.cookie_httponly', 1);
 session_start();
 
 define('APP_ROOT', __DIR__);
-$baseDir    = __DIR__;
-$configDir  = $baseDir . '/config';
-$configFile = $configDir . '/config.php';
-$lockFile   = $configDir . '/installed.lock';
+$baseDir     = __DIR__;
+$configDir   = $baseDir . '/config';
+$configFile  = $configDir . '/config.php';
+$lockFile    = $configDir . '/installed.lock';
+$pendingFile = $configDir . '/install.pending';
 
 // -----------------------------------------------------------------------------
-// 1. NEPRŮSTŘELNÁ OCHRANA PROTI RE-INSTALACI (ZÁMEK)
+// 1. TVRDÁ OCHRANA PROTI RE-INSTALACI
 // -----------------------------------------------------------------------------
-if (file_exists($lockFile)) {
+// Instalace je zablokovaná, jakmile existuje installed.lock NEBO config.php.
+// Rozhoduje se jen podle souborů, bez připojení k databázi, takže výpadek DB
+// nebo smazaný zámek nikdy neotevře instalátor (a nejde tak přepsat config.php).
+// Jedinou výjimkou je rozběhnutá instalace: krok 1 zapíše config.php spolu
+// s install.pending a stejný náhodný token uloží do session. Pokračovat (krok 2)
+// tak může jen prohlížeč, ve kterém instalace začala.
+function install_blocked(): void
+{
     http_response_code(403);
+    header('Content-Type: text/html; charset=UTF-8');
     die('
         <div style="font-family: sans-serif; text-align: center; margin-top: 50px; color: #27ae60;">
             <h2 style="font-size: 2em; margin-bottom: 10px;">Systém je již nainstalován</h2>
             <p style="color: #555;">Z bezpečnostních důvodů nelze instalaci spustit znovu. Vraťte se na <a href="index.php" style="color: #2980b9;">Přihlašovací obrazovku</a>.</p>
-            <p style="color: #999; font-size: 0.8em; margin-top: 20px;">(Pokud opravdu potřebujete instalaci opakovat, musíte přes FTP smazat soubor config/installed.lock)</p>
+            <p style="color: #999; font-size: 0.8em; margin-top: 20px;">(Pokud opravdu potřebujete instalaci opakovat, smažte přes FTP soubory config/config.php, config/installed.lock a config/install.pending.)</p>
         </div>
     ');
 }
 
-$step = (int)($_GET['step'] ?? 1);
-$error = '';
-
-// Dodatečná kontrola pro případ, že existuje config, ale chybí lock file.
-if (file_exists($configFile) && $step === 1) {
-    require_once $configFile;
-    {
-        require_once APP_ROOT . '/app/Core/Database.php';
-        try {
-            $pdo = Database::getConnection();
-            $stmt = $pdo->query("SELECT COUNT(*) FROM users");
-            if ($stmt && (int)$stmt->fetchColumn() > 0) {
-                @file_put_contents($lockFile, 'Uzamceno automaticky: ' . date('Y-m-d H:i:s'));
-                header('Location: index.php?page=login');
-                exit;
-            } else {
-                header('Location: install.php?step=2');
-                exit;
-            }
-        } catch (Exception $e) {
-            // Při výpadku DB nesmíme padat tiše do instalace
-        }
-    }
+if (file_exists($lockFile)) {
+    install_blocked();
 }
+
+$pendingToken = is_file($pendingFile) ? trim((string)@file_get_contents($pendingFile)) : '';
+$sessionToken = $_SESSION['install_token'] ?? '';
+$installInProgress = strlen($pendingToken) >= 32
+    && is_string($sessionToken)
+    && hash_equals($pendingToken, $sessionToken);
+
+if (file_exists($configFile) && !$installInProgress) {
+    install_blocked();
+}
+
+$step = (int)($_GET['step'] ?? 1);
+if (!in_array($step, [1, 2], true)) {
+    $step = 1;
+}
+if ($installInProgress && $step === 1 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    // Krok 1 už proběhl, pokračuje se založením administrátora.
+    $step = 2;
+}
+$error = '';
 
 // -----------------------------------------------------------------------------
 // 2. ZPRACOVÁNÍ FORMULÁŘŮ A VYTVOŘENÍ SCHÉMATU (CMMS v2.0)
@@ -84,6 +94,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "define('DB_NAME', " . var_export($db_name, true) . ");\n" .
                     "define('DB_USER', " . var_export($db_user, true) . ");\n" .
                     "define('DB_PASS', " . var_export($db_pass, true) . ");\n";
+
+                if (!$installInProgress) {
+                    $installToken = bin2hex(random_bytes(32));
+                    if (@file_put_contents($pendingFile, $installToken, LOCK_EX) === false) {
+                        throw new Exception("Nepodařilo se zapsat do složky config/. Zkontrolujte oprávnění (chmod).");
+                    }
+                    session_regenerate_id(true);
+                    $_SESSION['install_token'] = $installToken;
+                    $installInProgress = true;
+                }
 
                 if (@file_put_contents($configFile, $configContent) === false) {
                     throw new Exception("Nepodařilo se zapsat do složky config/. Zkontrolujte oprávnění (chmod).");
@@ -363,6 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Bez zámku by jinak kdokoli mohl přes ?step=2 založit dalšího administrátora.
                 if ((int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() > 0) {
                     @file_put_contents($lockFile, 'Uzamceno automaticky: ' . date('Y-m-d H:i:s'));
+                    @unlink($pendingFile);
                     http_response_code(403);
                     die('Systém je již nainstalován.');
                 }
@@ -378,6 +399,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$username, $hashed_password, $first_name, $last_name]);
 
                     @file_put_contents($lockFile, 'Instalace dokoncena (v2.0): ' . date('Y-m-d H:i:s'));
+                    @unlink($pendingFile);
+                    unset($_SESSION['install_token']);
                     $deleted = @unlink(__FILE__);
 
                     echo '<!DOCTYPE html>

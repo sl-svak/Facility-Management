@@ -30,7 +30,7 @@ class FormModel {
 
     public static function update($id, $title, $schemaJson, $estimatedMinutes = 15) {
         $pdo = Database::getConnection();
-        $stmt = $pdo->prepare("UPDATE form_templates SET title = ?, schema_json = ?, estimated_minutes = ? WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE form_templates SET title = ?, schema_json = ?, estimated_minutes = ? WHERE id = ? AND is_active = 1");
         return $stmt->execute([$title, $schemaJson, (int)$estimatedMinutes, (int)$id]);
     }
 

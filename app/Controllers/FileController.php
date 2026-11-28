@@ -56,6 +56,7 @@ class FileController {
             'png' => 'image/png',
             'jpg' => 'image/jpeg',
             'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
             'webp' => 'image/webp',
             'heic' => 'image/heic',
             'pdf' => 'application/pdf'

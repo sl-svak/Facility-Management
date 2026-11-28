@@ -78,6 +78,8 @@
         }
 
         let html = '';
+        // Vnitřní escapování HTML ve vykresleném náhledu
+        const esc = (v) => String(v === null || v === undefined ? '' : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         schema.forEach((field, index) => {
             let icon = 'rule';
             if(field.type === 'textarea') icon = 'edit_note';
@@ -97,8 +99,6 @@
 
             let requiredStar = field.required ? '<span style="color: var(--danger); font-weight: bold; margin-left: 4px;">*</span>' : '';
 
-            // Vnitřní escapování HTML ve vykresleném náhledu
-            const esc = (v) => String(v === null || v === undefined ? '' : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
             let safeLabel = esc(field.label);
 
             html += `

@@ -116,8 +116,19 @@ if ($page === 'login') {
         if ($loginResult === 'success') {
             session_regenerate_id(true);
 
-            $redirect = $_SESSION['redirect_after_login'] ?? 'index.php?page=dashboard';
+            $redirect = (string)($_SESSION['redirect_after_login'] ?? '');
             unset($_SESSION['redirect_after_login']);
+            // BEZPEČNOSTNÍ OPRAVA (open redirect): povolen je jen návrat na stránku aplikace
+            // (cesta k index.php se samými bezpečnými znaky), nikdy adresa jiného webu ("//", "\\", schéma).
+            $redirectPath = (string)parse_url($redirect, PHP_URL_PATH);
+            if ($redirect === '' || $redirect[0] !== '/'
+                || !preg_match('#^/[A-Za-z0-9_./~%-]*$#', $redirectPath)
+                || strpos($redirect, '//') !== false
+                || strpos($redirect, '\\') !== false
+                || !preg_match('#/(index\.php)?$#', $redirectPath)
+                || preg_match('/[\x00-\x1F\x7F]/', $redirect)) {
+                $redirect = 'index.php?page=dashboard';
+            }
             header('Location: ' . $redirect);
             exit;
         } elseif ($loginResult === 'blocked') {

@@ -19,6 +19,10 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
     <div class="card" style="border-left: 4px solid var(--danger); margin-bottom: 20px; color: var(--danger);">
         Šablonu nelze smazat, protože je použita v plánech údržby zařízení z jiných úseků. Smazat ji může jen administrátor.
     </div>
+<?php elseif (($_GET['error'] ?? '') === 'edit_other'): ?>
+    <div class="card" style="border-left: 4px solid var(--danger); margin-bottom: 20px; color: var(--danger);">
+        Šablonu nelze upravit, protože je použita v plánech údržby zařízení z jiných úseků. Upravit ji může jen administrátor.
+    </div>
 <?php elseif (($_GET['error'] ?? '') === 'failed'): ?>
     <div class="card" style="border-left: 4px solid var(--danger); margin-bottom: 20px; color: var(--danger);">
         Šablonu se nepodařilo smazat. Zkuste to prosím znovu.
@@ -131,7 +135,11 @@ $formSchema = $isEdit ? $editTemplate['schema_json'] : '[]';
                             </span>
                         </div>
                         <div style="display: flex; gap: 15px;">
-                            <a href="index.php?page=forms&edit_id=<?= $tpl['id'] ?>" style="color: var(--info); text-decoration: none;"><span class="material-symbols-outlined">edit</span></a>
+                            <?php if ($blocked): ?>
+                                <span class="material-symbols-outlined" style="color: var(--text-muted); cursor: not-allowed;" title="Šablona je použita u zařízení z jiných úseků - upravit ji může jen administrátor">edit</span>
+                            <?php else: ?>
+                                <a href="index.php?page=forms&edit_id=<?= (int)$tpl['id'] ?>" style="color: var(--info); text-decoration: none;" title="Upravit šablonu"><span class="material-symbols-outlined">edit</span></a>
+                            <?php endif; ?>
                             <form method="POST" action="index.php?page=form_delete" style="display: inline; margin: 0;">
                                     <?= Security::csrfField() ?>
                                     <input type="hidden" name="id" value="<?= $tpl['id'] ?>">

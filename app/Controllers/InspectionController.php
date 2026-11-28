@@ -203,7 +203,29 @@ class InspectionController {
                 die("Bezpečnostní chyba: Zvolený formulář není k tomuto zařízení přiřazen.");
             }
 
+            // BEZPEČNOSTNÍ OPRAVA: ukládají se jen pole definovaná ve schématu formuláře.
+            // Jinak by šlo podstrčit např. pole s hodnotou "Odstaveno" (odstavení zařízení bez pole
+            // provozního stavu) nebo cesty k cizím souborům v data_json.
+            $schema = json_decode($template['schema_json'] ?? '[]', true);
+            if (!is_array($schema)) {
+                $schema = [];
+            }
+            $allowedFields = []; // id pole => typ (ID se tvoří stejně jako v inspection_fill.php)
+            foreach ($schema as $index => $f) {
+                if (!is_array($f)) {
+                    continue;
+                }
+                $fId = (string)($f['id'] ?? ($f['label'] ?? ('Položka #' . ((int)$index + 1))));
+                if ($fId !== '') {
+                    $allowedFields[$fId] = (string)($f['type'] ?? 'text');
+                }
+            }
+
             $formData = $_POST['data'] ?? [];
+            if (!is_array($formData)) {
+                $formData = [];
+            }
+            $formData = array_intersect_key($formData, $allowedFields);
             $uploadDir = APP_ROOT . '/assets/uploads/';
 
             if (isset($_POST['photos_base64']) && is_array($_POST['photos_base64'])) {
@@ -216,7 +238,10 @@ class InspectionController {
                 }
 
                 foreach ($_POST['photos_base64'] as $key => $base64Array) {
-                    if (is_array($base64Array) && count($base64Array) > 5) {
+                    if (($allowedFields[(string)$key] ?? '') !== 'photo' || !is_array($base64Array)) {
+                        continue;
+                    }
+                    if (count($base64Array) > 5) {
                         $base64Array = array_slice($base64Array, 0, 5);
                     }
                     $uploadedPaths = [];
@@ -235,10 +260,6 @@ class InspectionController {
             $setToStopped = false;
             $setToRunning = false;
 
-            $schema = json_decode($template['schema_json'] ?? '[]', true);
-            if (!is_array($schema)) {
-                $schema = [];
-            }
             $labelMap = [];
             $signatureFields = [];
 

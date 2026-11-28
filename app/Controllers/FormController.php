@@ -1,12 +1,37 @@
 <?php
 class FormController {
-    
+
+    /**
+     * Šablony jsou společné pro všechny úseky. Ne-administrátor smí šablonu měnit (upravit/smazat)
+     * jen tehdy, když ji v plánech údržby používají výhradně zařízení z jeho úseků.
+     */
+    private static function canModifyTemplate($id) {
+        if (Auth::isAdmin()) {
+            return true;
+        }
+        $id = (int)$id;
+        $all = FormModel::getUsageMap();
+        $mine = FormModel::getUsageMap(Auth::getDepartmentSqlFilter('a'));
+        return count($all[$id] ?? []) === count($mine[$id] ?? []);
+    }
+
     public static function index() {
         $templates = FormModel::getAll();
         $editTemplate = null;
 
         if (isset($_GET['edit_id'])) {
-            $editTemplate = FormModel::getById((int)$_GET['edit_id']);
+            $editId = (int)$_GET['edit_id'];
+            $candidate = FormModel::getById($editId);
+            // Smazané šablony a šablony používané jinými úseky nelze otevřít k úpravě
+            if (!$candidate || (int)$candidate['is_active'] !== 1) {
+                header('Location: index.php?page=forms');
+                exit;
+            }
+            if (!self::canModifyTemplate($editId)) {
+                header('Location: index.php?page=forms&error=edit_other');
+                exit;
+            }
+            $editTemplate = $candidate;
         }
         
         // Použití šablon v plánech údržby (pro informaci před smazáním).
@@ -49,6 +74,17 @@ class FormController {
             
             if (!empty($title) && $schema_json !== '[]') {
                 if ($id > 0) {
+                    // BEZPEČNOSTNÍ OPRAVA: upravit lze jen existující aktivní šablonu a ne-administrátor
+                    // jen takovou, kterou nepoužívají zařízení z cizích úseků (stejně jako u mazání).
+                    $existing = FormModel::getById($id);
+                    if (!$existing || (int)$existing['is_active'] !== 1) {
+                        header('Location: index.php?page=forms');
+                        exit;
+                    }
+                    if (!self::canModifyTemplate($id)) {
+                        header('Location: index.php?page=forms&error=edit_other');
+                        exit;
+                    }
                     FormModel::update($id, $title, $schema_json, $estimated_minutes);
                 } else {
                     FormModel::create($title, $schema_json, $estimated_minutes);
@@ -66,13 +102,9 @@ class FormController {
 
             // Šablony jsou společné pro všechny úseky. Smazáním se odstraní i plány údržby, takže
             // ne-administrátor nesmí smazat šablonu použitou u zařízení mimo své úseky.
-            if (!Auth::isAdmin()) {
-                $all = FormModel::getUsageMap();
-                $mine = FormModel::getUsageMap(Auth::getDepartmentSqlFilter('a'));
-                if (count($all[$id] ?? []) !== count($mine[$id] ?? [])) {
-                    header('Location: index.php?page=forms&error=in_use_other');
-                    exit;
-                }
+            if (!self::canModifyTemplate($id)) {
+                header('Location: index.php?page=forms&error=in_use_other');
+                exit;
             }
 
             try {

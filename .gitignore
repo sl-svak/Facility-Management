@@ -1,6 +1,7 @@
 # Přihlašovací údaje a zámek instalace - NIKDY na veřejný Git
 config/config.php
 config/installed.lock
+config/install.pending
 
 # Nahrané soubory uživatelů (fotky, podpisy, PDF protokoly) a dočasné soubory
 assets/uploads/*
